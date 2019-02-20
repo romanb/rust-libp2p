@@ -20,7 +20,7 @@
 
 use futures::{future::Either, prelude::*};
 use libp2p_core::{Transport, upgrade::{apply_inbound, apply_outbound}};
-use libp2p_noise::{Keypair, PublicKey, Curve25519, NoiseConfig};
+use libp2p_noise::{StaticKeypair, StaticPublicKey, NoiseConfig};
 use libp2p_tcp::TcpConfig;
 use log::info;
 use quickcheck::QuickCheck;
@@ -30,10 +30,11 @@ use tokio::{self, io};
 fn xx() {
     let _ = env_logger::try_init();
     fn prop(message: Vec<u8>) -> bool {
-        let server_keypair = Keypair::gen_curve25519();
+
+        let server_keypair = StaticKeypair::new();
         let server_transport = TcpConfig::new().with_upgrade(NoiseConfig::xx(server_keypair));
 
-        let client_keypair = Keypair::gen_curve25519();
+        let client_keypair = StaticKeypair::new();
         let client_transport = TcpConfig::new().with_upgrade(NoiseConfig::xx(client_keypair));
 
         run(server_transport, client_transport, message);
@@ -47,10 +48,10 @@ fn ix() {
     let _ = env_logger::try_init();
     fn prop(message: Vec<u8>) -> bool {
 
-        let server_keypair = Keypair::gen_curve25519();
+        let server_keypair = StaticKeypair::new();
         let server_transport = TcpConfig::new().with_upgrade(NoiseConfig::ix(server_keypair));
 
-        let client_keypair = Keypair::gen_curve25519();
+        let client_keypair = StaticKeypair::new();
         let client_transport = TcpConfig::new().with_upgrade(NoiseConfig::ix(client_keypair));
 
         run(server_transport, client_transport, message);
@@ -63,7 +64,7 @@ fn ix() {
 fn ik_xx() {
     let _ = env_logger::try_init();
     fn prop(message: Vec<u8>) -> bool {
-        let server_keypair = Keypair::gen_curve25519();
+        let server_keypair = StaticKeypair::new();
         let server_public = server_keypair.public().clone();
         let server_transport = TcpConfig::new()
             .and_then(move |output, endpoint| {
@@ -74,7 +75,7 @@ fn ik_xx() {
                 }
             });
 
-        let client_keypair = Keypair::gen_curve25519();
+        let client_keypair = StaticKeypair::new();
         let client_transport = TcpConfig::new()
             .and_then(move |output, endpoint| {
                 if endpoint.is_dialer() {
@@ -92,12 +93,12 @@ fn ik_xx() {
 
 fn run<T, A, U, B>(server_transport: T, client_transport: U, message1: Vec<u8>)
 where
-    T: Transport<Output = (PublicKey<Curve25519>, A)>,
+    T: Transport<Output = (StaticPublicKey, A)>,
     T::Dial: Send + 'static,
     T::Listener: Send + 'static,
     T::ListenerUpgrade: Send + 'static,
     A: io::AsyncRead + io::AsyncWrite + Send + 'static,
-    U: Transport<Output = (PublicKey<Curve25519>, B)>,
+    U: Transport<Output = (StaticPublicKey, B)>,
     U::Dial: Send + 'static,
     U::Listener: Send + 'static,
     U::ListenerUpgrade: Send + 'static,

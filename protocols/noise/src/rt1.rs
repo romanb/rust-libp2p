@@ -23,7 +23,7 @@
 use crate::{
     error::NoiseError,
     io::{Handshake, NoiseOutput},
-    keys::{Curve25519, PublicKey}
+    keys::StaticPublicKey
 };
 use futures::prelude::*;
 use snow;
@@ -59,7 +59,7 @@ impl<T> Future for NoiseInboundFuture<T>
 where
     T: AsyncRead + AsyncWrite
 {
-    type Item = (PublicKey<Curve25519>, NoiseOutput<T>);
+    type Item = (StaticPublicKey, NoiseOutput<T>);
     type Error = NoiseError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -127,7 +127,7 @@ impl<T> Future for NoiseOutboundFuture<T>
 where
     T: AsyncRead + AsyncWrite
 {
-    type Item = (PublicKey<Curve25519>, NoiseOutput<T>);
+    type Item = (StaticPublicKey, NoiseOutput<T>);
     type Error = NoiseError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {

@@ -34,10 +34,10 @@
 //! ```
 //! use libp2p_core::Transport;
 //! use libp2p_tcp::TcpConfig;
-//! use libp2p_noise::{Keypair, NoiseConfig};
+//! use libp2p_noise::{StaticKeypair, NoiseConfig};
 //!
 //! # fn main() {
-//! let keypair = Keypair::gen_curve25519();
+//! let keypair = StaticKeypair::new();
 //! let transport = TcpConfig::new().with_upgrade(NoiseConfig::xx(keypair));
 //! // ...
 //! # }
@@ -55,7 +55,7 @@ pub mod rt15;
 
 pub use error::NoiseError;
 pub use io::NoiseOutput;
-pub use keys::{Curve25519, PublicKey, SecretKey, Keypair};
+pub use keys::{StaticKeypair, StaticPublicKey};
 
 use libp2p_core::{UpgradeInfo, InboundUpgrade, OutboundUpgrade};
 use lazy_static::lazy_static;
@@ -89,7 +89,7 @@ pub enum XX {}
 /// The protocol upgrade configuration.
 #[derive(Clone)]
 pub struct NoiseConfig<P, R = ()> {
-    keypair: Keypair<Curve25519>,
+    keypair: StaticKeypair,
     params: snow::params::NoiseParams,
     remote: R,
     _marker: std::marker::PhantomData<P>
@@ -97,7 +97,7 @@ pub struct NoiseConfig<P, R = ()> {
 
 impl NoiseConfig<IX> {
     /// Create a new `NoiseConfig` for the IX handshake pattern.
-    pub fn ix(kp: Keypair<Curve25519>) -> Self {
+    pub fn ix(kp: StaticKeypair) -> Self {
         NoiseConfig {
             keypair: kp,
             params: PARAMS_IX.clone(),
@@ -109,7 +109,7 @@ impl NoiseConfig<IX> {
 
 impl NoiseConfig<XX> {
     /// Create a new `NoiseConfig` for the XX handshake pattern.
-    pub fn xx(kp: Keypair<Curve25519>) -> Self {
+    pub fn xx(kp: StaticKeypair) -> Self {
         NoiseConfig {
             keypair: kp,
             params: PARAMS_XX.clone(),
@@ -121,7 +121,7 @@ impl NoiseConfig<XX> {
 
 impl NoiseConfig<IK> {
     /// Create a new `NoiseConfig` for the IK handshake pattern (recipient side).
-    pub fn ik_listener(kp: Keypair<Curve25519>) -> Self {
+    pub fn ik_listener(kp: StaticKeypair) -> Self {
         NoiseConfig {
             keypair: kp,
             params: PARAMS_IK.clone(),
@@ -131,9 +131,9 @@ impl NoiseConfig<IK> {
     }
 }
 
-impl NoiseConfig<IK, PublicKey<Curve25519>> {
+impl NoiseConfig<IK, StaticPublicKey> {
     /// Create a new `NoiseConfig` for the IK handshake pattern (initiator side).
-    pub fn ik_dialer(kp: Keypair<Curve25519>, remote: PublicKey<Curve25519>) -> Self {
+    pub fn ik_dialer(kp: StaticKeypair, remote: StaticPublicKey) -> Self {
         NoiseConfig {
             keypair: kp,
             params: PARAMS_IK.clone(),
@@ -158,13 +158,13 @@ impl<T> InboundUpgrade<T> for NoiseConfig<IX>
 where
     T: AsyncRead + AsyncWrite
 {
-    type Output = (PublicKey<Curve25519>, NoiseOutput<T>);
+    type Output = (StaticPublicKey, NoiseOutput<T>);
     type Error = NoiseError;
     type Future = rt1::NoiseInboundFuture<T>;
 
     fn upgrade_inbound(self, socket: T, _: Self::Info) -> Self::Future {
         let session = snow::Builder::with_resolver(self.params, Box::new(Resolver))
-            .local_private_key(self.keypair.secret().as_ref())
+            .local_private_key(&self.keypair.secret().to_bytes())
             .build_responder()
             .map_err(NoiseError::from);
         rt1::NoiseInboundFuture::new(socket, session)
@@ -175,13 +175,13 @@ impl<T> OutboundUpgrade<T> for NoiseConfig<IX>
 where
     T: AsyncRead + AsyncWrite
 {
-    type Output = (PublicKey<Curve25519>, NoiseOutput<T>);
+    type Output = (StaticPublicKey, NoiseOutput<T>);
     type Error = NoiseError;
     type Future = rt1::NoiseOutboundFuture<T>;
 
     fn upgrade_outbound(self, socket: T, _: Self::Info) -> Self::Future {
         let session = snow::Builder::with_resolver(self.params, Box::new(Resolver))
-            .local_private_key(self.keypair.secret().as_ref())
+            .local_private_key(&self.keypair.secret().to_bytes())
             .build_initiator()
             .map_err(NoiseError::from);
         rt1::NoiseOutboundFuture::new(socket, session)
@@ -203,13 +203,13 @@ impl<T> InboundUpgrade<T> for NoiseConfig<XX>
 where
     T: AsyncRead + AsyncWrite
 {
-    type Output = (PublicKey<Curve25519>, NoiseOutput<T>);
+    type Output = (StaticPublicKey, NoiseOutput<T>);
     type Error = NoiseError;
     type Future = rt15::NoiseInboundFuture<T>;
 
     fn upgrade_inbound(self, socket: T, _: Self::Info) -> Self::Future {
         let session = snow::Builder::with_resolver(self.params, Box::new(Resolver))
-            .local_private_key(self.keypair.secret().as_ref())
+            .local_private_key(&self.keypair.secret().to_bytes())
             .build_responder()
             .map_err(NoiseError::from);
         rt15::NoiseInboundFuture::new(socket, session)
@@ -220,13 +220,13 @@ impl<T> OutboundUpgrade<T> for NoiseConfig<XX>
 where
     T: AsyncRead + AsyncWrite
 {
-    type Output = (PublicKey<Curve25519>, NoiseOutput<T>);
+    type Output = (StaticPublicKey, NoiseOutput<T>);
     type Error = NoiseError;
     type Future = rt15::NoiseOutboundFuture<T>;
 
     fn upgrade_outbound(self, socket: T, _: Self::Info) -> Self::Future {
         let session = snow::Builder::with_resolver(self.params, Box::new(Resolver))
-            .local_private_key(self.keypair.secret().as_ref())
+            .local_private_key(&self.keypair.secret().to_bytes())
             .build_initiator()
             .map_err(NoiseError::from);
         rt15::NoiseOutboundFuture::new(socket, session)
@@ -244,7 +244,7 @@ impl UpgradeInfo for NoiseConfig<IK> {
     }
 }
 
-impl UpgradeInfo for NoiseConfig<IK, PublicKey<Curve25519>> {
+impl UpgradeInfo for NoiseConfig<IK, StaticPublicKey> {
     type Info = &'static [u8];
     type InfoIter = std::iter::Once<Self::Info>;
 
@@ -257,31 +257,31 @@ impl<T> InboundUpgrade<T> for NoiseConfig<IK>
 where
     T: AsyncRead + AsyncWrite
 {
-    type Output = (PublicKey<Curve25519>, NoiseOutput<T>);
+    type Output = (StaticPublicKey, NoiseOutput<T>);
     type Error = NoiseError;
     type Future = rt1::NoiseInboundFuture<T>;
 
     fn upgrade_inbound(self, socket: T, _: Self::Info) -> Self::Future {
         let session = snow::Builder::with_resolver(self.params, Box::new(Resolver))
-            .local_private_key(self.keypair.secret().as_ref())
+            .local_private_key(&self.keypair.secret().to_bytes())
             .build_responder()
             .map_err(NoiseError::from);
         rt1::NoiseInboundFuture::new(socket, session)
     }
 }
 
-impl<T> OutboundUpgrade<T> for NoiseConfig<IK, PublicKey<Curve25519>>
+impl<T> OutboundUpgrade<T> for NoiseConfig<IK, StaticPublicKey>
 where
     T: AsyncRead + AsyncWrite
 {
-    type Output = (PublicKey<Curve25519>, NoiseOutput<T>);
+    type Output = (StaticPublicKey, NoiseOutput<T>);
     type Error = NoiseError;
     type Future = rt1::NoiseOutboundFuture<T>;
 
     fn upgrade_outbound(self, socket: T, _: Self::Info) -> Self::Future {
         let session = snow::Builder::with_resolver(self.params, Box::new(Resolver))
-            .local_private_key(self.keypair.secret().as_ref())
-            .remote_public_key(self.remote.as_ref())
+            .local_private_key(&self.keypair.secret().to_bytes())
+            .remote_public_key(self.remote.as_bytes())
             .build_initiator()
             .map_err(NoiseError::from);
         rt1::NoiseOutboundFuture::new(socket, session)
