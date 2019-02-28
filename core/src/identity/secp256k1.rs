@@ -39,7 +39,6 @@ pub struct Keypair {
 }
 
 impl Keypair {
-
     /// Generate a new sec256k1 `Keypair`.
     pub fn generate() -> Keypair {
         let secret = secp::key::SecretKey::new(&mut secp::rand::thread_rng());

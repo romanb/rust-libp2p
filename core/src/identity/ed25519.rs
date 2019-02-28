@@ -35,10 +35,12 @@ impl Keypair {
         Keypair(ed25519::Keypair::generate(&mut rand::thread_rng()))
     }
 
-    /// Create an Ed25519 keypair from a secret key.
-    pub fn from_secret(pk: impl AsRef<[u8]>) -> Result<Keypair, DecodingError> {
-        let secret = ed25519::SecretKey::from_bytes(pk.as_ref())
+    /// Create an Ed25519 keypair from a secret key, zeroing the input on success.
+    pub fn from_secret(mut sk: impl AsMut<[u8]>) -> Result<Keypair, DecodingError> {
+        let sk_bytes = sk.as_mut();
+        let secret = ed25519::SecretKey::from_bytes(&*sk_bytes)
             .map_err(|e| DecodingError::new("Ed25519 secret key", e.compat()))?;
+        sk_bytes.zeroize();
         let public = ed25519::PublicKey::from(&secret);
         Ok(Keypair(ed25519::Keypair { secret, public }))
     }
@@ -50,10 +52,11 @@ impl Keypair {
         self.0.to_bytes()
     }
 
-    /// Decode a keypair from the format produced by `encode`.
-    pub fn decode(kp: &[u8]) -> Result<Keypair, DecodingError> {
+    /// Decode a keypair from the format produced by `encode`,
+    /// zeroing the input on success.
+    pub fn decode(kp: &mut [u8]) -> Result<Keypair, DecodingError> {
         ed25519::Keypair::from_bytes(kp)
-            .map(Keypair)
+            .map(|k| { kp.zeroize(); Keypair(k) })
             .map_err(|e| DecodingError::new("Ed25519 keypair", e.compat()))
     }
 
@@ -110,11 +113,34 @@ mod tests {
     use super::*;
     use quickcheck::*;
 
+    fn eq_keypairs(kp1: &Keypair, kp2: &Keypair) -> bool {
+        kp1.public() == kp2.public()
+            &&
+        kp1.secret_bytes() == kp2.secret_bytes()
+    }
+
     #[test]
     fn ed25519_keypair_encode_decode() {
         fn prop() -> bool {
-            let pk = Keypair::generate();
-            Keypair::decode(&pk.encode()).is_ok()
+            let kp1 = Keypair::generate();
+            let mut kp1_enc = kp1.encode();
+            let kp2 = Keypair::decode(&mut kp1_enc).unwrap();
+            eq_keypairs(&kp1, &kp2)
+                &&
+            kp1_enc.iter().all(|b| *b == 0)
+        }
+        QuickCheck::new().tests(10).quickcheck(prop as fn() -> _);
+    }
+
+    #[test]
+    fn ed25519_keypair_from_secret() {
+        fn prop() -> bool {
+            let kp1 = Keypair::generate();
+            let mut sk = kp1.secret_bytes().clone();
+            let kp2 = Keypair::from_secret(&mut sk).unwrap();
+            eq_keypairs(&kp1, &kp2)
+                &&
+            sk == [0u8; 32]
         }
         QuickCheck::new().tests(10).quickcheck(prop as fn() -> _);
     }
