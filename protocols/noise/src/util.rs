@@ -18,18 +18,8 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-use crate::NoiseError;
+use crate::keys::x25519;
 use rand::FromEntropy;
-use x25519_dalek as x25519;
-
-pub(crate) fn to_array(bytes: &[u8]) -> Result<[u8; 32], NoiseError> {
-    if bytes.len() != 32 {
-        return Err(NoiseError::InvalidKey)
-    }
-    let mut m = [0; 32];
-    m.copy_from_slice(bytes);
-    Ok(m)
-}
 
 /// Custom `snow::CryptoResolver` which delegates to the `RingResolver`
 /// for hash functions and symmetric ciphers, while using x25519-dalek
@@ -46,7 +36,7 @@ impl snow::resolvers::CryptoResolver for Resolver {
 
     fn resolve_dh(&self, choice: &snow::params::DHChoice) -> Option<Box<dyn snow::types::Dh>> {
         if let snow::params::DHChoice::Curve25519 = choice {
-            Some(Box::new(Dh25519::default()))
+            Some(Box::new(x25519::Keypair::default()))
         } else {
             None
         }
@@ -86,33 +76,3 @@ impl rand::CryptoRng for Rng {}
 
 impl snow::types::Random for Rng {}
 
-/// Short-lived container for a static or ephemeral X25519 keypair
-/// used during DH computations by `snow`.
-#[derive(Default)]
-struct Dh25519 { sk: [u8; 32], pk:  [u8; 32] }
-
-impl snow::types::Dh for Dh25519 {
-    fn name(&self) -> &'static str { "25519" }
-    fn pub_len(&self) -> usize { 32 }
-    fn priv_len(&self) -> usize { 32 }
-    fn pubkey(&self) -> &[u8] { &self.pk }
-    fn privkey(&self) -> &[u8] { &self.sk }
-
-    fn set(&mut self, sk: &[u8]) {
-        self.sk.copy_from_slice(&sk[..]);
-        self.pk = x25519::x25519(self.sk, x25519::X25519_BASEPOINT_BYTES);
-    }
-
-    fn generate(&mut self, rng: &mut dyn snow::types::Random) {
-        rng.fill_bytes(&mut self.sk);
-        self.pk = x25519::x25519(self.sk, x25519::X25519_BASEPOINT_BYTES);
-    }
-
-    fn dh(&self, pk: &[u8], shared_secret: &mut [u8]) -> Result<(), ()> {
-        let mut p = [0; 32];
-        p.copy_from_slice(&pk[.. 32]);
-        let ss = x25519::x25519(self.sk, p);
-        shared_secret[.. 32].copy_from_slice(&ss[..]);
-        Ok(())
-    }
-}
