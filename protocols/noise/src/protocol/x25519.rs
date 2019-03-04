@@ -18,114 +18,125 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-use crate::error::NoiseError;
+use crate::{NoiseConfig, NoiseError, Protocol, ProtocolParams};
+use crate::keys::*;
 use curve25519_dalek::edwards::CompressedEdwardsY;
+use lazy_static::lazy_static;
+use libp2p_core::UpgradeInfo;
 use libp2p_core::identity::ed25519;
 use rand::Rng;
 use ring::digest::{SHA512, digest};
-use super::DhKeys;
-use x25519_dalek as x25519;
-use x25519::{x25519, X25519_BASEPOINT_BYTES};
+use x25519_dalek::{X25519_BASEPOINT_BYTES, x25519};
 use zeroize::Zeroize;
 
-/// X25519 static keypair.
-#[derive(Clone)]
-pub struct Keypair {
-    secret: SecretKey,
-    public: PublicKey
+use super::*;
+
+lazy_static! {
+    static ref PARAMS_IK: ProtocolParams = "Noise_IK_25519_ChaChaPoly_SHA256"
+        .parse()
+        .map(ProtocolParams)
+        .expect("Invalid handshake pattern");
+
+    static ref PARAMS_IX: ProtocolParams = "Noise_IX_25519_ChaChaPoly_SHA256"
+        .parse()
+        .map(ProtocolParams)
+        .expect("Invalid handshake pattern");
+
+    static ref PARAMS_XX: ProtocolParams = "Noise_XX_25519_ChaChaPoly_SHA256"
+        .parse()
+        .map(ProtocolParams)
+        .expect("Invalid handshake pattern");
 }
 
-/// X25519 secret key (i.e. secret scalar).
 #[derive(Clone)]
-pub struct SecretKey([u8; 32]);
+pub struct X25519([u8; 32]);
 
-impl Drop for SecretKey {
-    fn drop(&mut self) {
+impl UpgradeInfo for NoiseConfig<IX, X25519> {
+    type Info = &'static [u8];
+    type InfoIter = std::iter::Once<Self::Info>;
+
+    fn protocol_info(&self) -> Self::InfoIter {
+        std::iter::once(b"/noise/ix/25519/chachapoly/sha256/0.1.0")
+    }
+}
+
+impl UpgradeInfo for NoiseConfig<XX, X25519> {
+    type Info = &'static [u8];
+    type InfoIter = std::iter::Once<Self::Info>;
+
+    fn protocol_info(&self) -> Self::InfoIter {
+        std::iter::once(b"/noise/xx/25519/chachapoly/sha256/0.1.0")
+    }
+}
+
+impl UpgradeInfo for NoiseConfig<IK, X25519> {
+    type Info = &'static [u8];
+    type InfoIter = std::iter::Once<Self::Info>;
+
+    fn protocol_info(&self) -> Self::InfoIter {
+        std::iter::once(b"/noise/ik/25519/chachapoly/sha256/0.1.0")
+    }
+}
+
+impl UpgradeInfo for NoiseConfig<IK, X25519, PublicKey<X25519>> {
+    type Info = &'static [u8];
+    type InfoIter = std::iter::Once<Self::Info>;
+
+    fn protocol_info(&self) -> Self::InfoIter {
+        std::iter::once(b"/noise/ik/25519/chachapoly/sha256/0.1.0")
+    }
+}
+
+impl AsRef<[u8]> for X25519 {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+impl Zeroize for X25519 {
+    fn zeroize(&mut self) {
         self.0.zeroize()
     }
 }
 
-impl AsRef<[u8]> for SecretKey {
-    fn as_ref(&self) -> &[u8] {
-        &self.0
+impl Protocol<X25519> for X25519 {
+    fn params_ik() -> ProtocolParams {
+        PARAMS_IK.clone()
     }
-}
 
-/// X25519 public key (i.e. public point).
-#[derive(Clone, PartialEq, Eq)]
-pub struct PublicKey([u8; 32]);
-
-impl AsRef<[u8]> for PublicKey {
-    fn as_ref(&self) -> &[u8] {
-        &self.0
+    fn params_ix() -> ProtocolParams {
+        PARAMS_IX.clone()
     }
-}
 
-impl DhKeys for Keypair {
-    type PublicKey = PublicKey;
+    fn params_xx() -> ProtocolParams {
+        PARAMS_XX.clone()
+    }
 
-    fn public_from_slice(bytes: &[u8]) -> Result<PublicKey, NoiseError> {
+    fn public_from_bytes(bytes: &[u8]) -> Result<PublicKey<X25519>, NoiseError> {
         if bytes.len() != 32 {
             return Err(NoiseError::InvalidKey)
         }
         let mut pk = [0u8; 32];
         pk.copy_from_slice(bytes);
-        Ok(PublicKey(pk))
+        Ok(PublicKey(X25519(pk)))
     }
 }
 
-impl snow::types::Dh for Keypair {
-    fn name(&self) -> &'static str { "25519" }
-    fn pub_len(&self) -> usize { 32 }
-    fn priv_len(&self) -> usize { 32 }
-    fn pubkey(&self) -> &[u8] { &self.public.0 }
-    fn privkey(&self) -> &[u8] { &self.secret.0 }
-
-    fn set(&mut self, sk: &[u8]) {
-        let mut secret = [0u8; 32];
-        secret.copy_from_slice(&sk[..]);
-        self.secret = SecretKey(secret); // Copy
-        self.public = PublicKey(x25519(secret, X25519_BASEPOINT_BYTES));
-        secret.zeroize();
-    }
-
-    fn generate(&mut self, rng: &mut dyn snow::types::Random) {
-        let mut secret = [0u8; 32];
-        rng.fill_bytes(&mut secret);
-        self.secret = SecretKey(secret); // Copy
-        self.public = PublicKey(x25519(secret, X25519_BASEPOINT_BYTES));
-        secret.zeroize();
-    }
-
-    fn dh(&self, pk: &[u8], shared_secret: &mut [u8]) -> Result<(), ()> {
-        let mut p = [0; 32];
-        p.copy_from_slice(&pk[.. 32]);
-        let ss = x25519(self.secret.0, p);
-        shared_secret[.. 32].copy_from_slice(&ss[..]);
-        Ok(())
-    }
-}
-
-impl Keypair {
+impl Keypair<X25519> {
     /// An "empty" keypair as a starting state for DH computations in `snow`,
     /// which get manipulated through the `snow::types::Dh` interface.
-    pub(crate) fn default() -> Keypair {
+    pub(crate) fn default() -> Self {
         Keypair {
-            secret: SecretKey([0u8; 32]),
-            public: PublicKey([0u8; 32])
+            secret: SecretKey(X25519([0u8; 32])),
+            public: PublicKey(X25519([0u8; 32]))
         }
     }
 
-    /// Get a reference to the public key.
-    pub fn public(&self) -> &PublicKey {
-        &self.public
-    }
-
     /// Create a new X25519 keypair.
-    pub fn new() -> Keypair {
+    pub fn new() -> Keypair<X25519> {
         let mut sk_bytes = [0u8; 32];
         rand::thread_rng().fill(&mut sk_bytes);
-        let sk = SecretKey(sk_bytes); // Copy
+        let sk = SecretKey(X25519(sk_bytes)); // Copy
         sk_bytes.zeroize();
         Self::from(sk)
     }
@@ -141,7 +152,7 @@ impl Keypair {
     ///
     /// [Noise: Static Key Reuse](http://www.noiseprotocol.org/noise.html#security-considerations)
     /// [Ed25519 to Curve25519](https://libsodium.gitbook.io/doc/advanced/ed25519-curve25519)
-    pub fn from_ed25519(ed: &ed25519::Keypair) -> Keypair {
+    pub fn from_ed25519(ed: &ed25519::Keypair) -> Keypair<X25519> {
         // An Ed25519 public key is derived off the left half of the SHA512 of the
         // secret scalar, hence a matching conversion of the secret key must do
         // the same to yield a Curve25519 keypair with the same public key.
@@ -149,30 +160,59 @@ impl Keypair {
         let mut curve25519_sk: [u8; 32] = [0; 32];
         let hash = digest(&SHA512, ed25519_sk);
         curve25519_sk.copy_from_slice(&hash.as_ref()[..32]);
-        let sk = SecretKey(curve25519_sk); // Copy
+        let sk = SecretKey(X25519(curve25519_sk)); // Copy
         curve25519_sk.zeroize();
         Self::from(sk)
     }
+
 }
 
-impl From<SecretKey> for Keypair {
-    fn from(secret: SecretKey) -> Keypair {
-        let public = PublicKey(x25519(secret.0, X25519_BASEPOINT_BYTES));
+impl From<SecretKey<X25519>> for Keypair<X25519> {
+    fn from(secret: SecretKey<X25519>) -> Keypair<X25519> {
+        let public = PublicKey(X25519(x25519((secret.0).0, X25519_BASEPOINT_BYTES)));
         Keypair { secret, public }
     }
 }
 
-impl PublicKey {
+impl PublicKey<X25519> {
     /// Construct a curve25519 public key from an Ed25519 public key.
-    ///
-    /// See also [`Keypair::from_ed25519`].
-    ///
-    /// [`Keypair::from_ed25519`]: struct.StaticKeypair.html#method.from_ed25519
-    pub fn from_ed25519(pk: &ed25519::PublicKey) -> PublicKey {
-        PublicKey(CompressedEdwardsY(pk.encode())
+    pub fn from_ed25519(pk: &ed25519::PublicKey) -> PublicKey<X25519> {
+        PublicKey(X25519(CompressedEdwardsY(pk.encode())
             .decompress()
             .expect("An Ed25519 public key is a valid point by construction.")
-            .to_montgomery().0)
+            .to_montgomery().0))
+    }
+}
+
+impl snow::types::Dh for Keypair<X25519> {
+    fn name(&self) -> &'static str { "25519" }
+    fn pub_len(&self) -> usize { 32 }
+    fn priv_len(&self) -> usize { 32 }
+    fn pubkey(&self) -> &[u8] { self.public.as_ref() }
+    fn privkey(&self) -> &[u8] { self.secret.as_ref() }
+
+    fn set(&mut self, sk: &[u8]) {
+        let mut secret = [0u8; 32];
+        secret.copy_from_slice(&sk[..]);
+        self.secret = SecretKey(X25519(secret)); // Copy
+        self.public = PublicKey(X25519(x25519(secret, X25519_BASEPOINT_BYTES)));
+        secret.zeroize();
+    }
+
+    fn generate(&mut self, rng: &mut dyn snow::types::Random) {
+        let mut secret = [0u8; 32];
+        rng.fill_bytes(&mut secret);
+        self.secret = SecretKey(X25519(secret)); // Copy
+        self.public = PublicKey(X25519(x25519(secret, X25519_BASEPOINT_BYTES)));
+        secret.zeroize();
+    }
+
+    fn dh(&self, pk: &[u8], shared_secret: &mut [u8]) -> Result<(), ()> {
+        let mut p = [0; 32];
+        p.copy_from_slice(&pk[.. 32]);
+        let ss = x25519((self.secret.0).0, p);
+        shared_secret[.. 32].copy_from_slice(&ss[..]);
+        Ok(())
     }
 }
 
@@ -183,6 +223,7 @@ mod tests {
     use sodiumoxide::crypto::sign;
     use std::os::raw::c_int;
     use super::*;
+    use x25519_dalek::StaticSecret;
 
     // ed25519 to x25519 keypair conversion must yield the same results as
     // obtained through libsodium.
@@ -203,10 +244,10 @@ mod tests {
             // That happens in `StaticSecret::from`.
             //
             // [clamping]: http://www.lix.polytechnique.fr/~smith/ECC/#scalar-clamping
-            let our_sec = x25519::StaticSecret::from(x25519.secret.0).to_bytes();
+            let our_sec = StaticSecret::from((x25519.secret.0).0).to_bytes();
 
             sodium_sec.as_ref() == Some(&our_sec) &&
-            sodium_pub.as_ref() == Some(&our_pub)
+            sodium_pub.as_ref() == Some(&our_pub.0)
         }
 
         quickcheck(prop as fn() -> _);
@@ -221,7 +262,7 @@ mod tests {
             let ed25519 = ed25519::Keypair::generate();
             let x25519 = Keypair::from_ed25519(&ed25519);
             let x25519_public = PublicKey::from_ed25519(&ed25519.public());
-            x25519.public == x25519_public
+            x25519.public.as_ref() == x25519_public.as_ref()
         }
 
         quickcheck(prop as fn() -> _);

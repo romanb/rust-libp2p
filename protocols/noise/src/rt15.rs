@@ -21,9 +21,10 @@
 //! Futures performing 1.5 round trips.
 
 use crate::{
-    error::NoiseError,
+    Protocol,
+    PublicKey,
+    NoiseError,
     io::{Handshake, NoiseOutput},
-    keys::DhKeys
 };
 use futures::prelude::*;
 use snow;
@@ -38,12 +39,12 @@ use tokio_io::{AsyncRead, AsyncWrite};
 /// 1. receive message
 /// 2. send message
 /// 3. receive message
-pub struct NoiseInboundFuture<T, K> {
+pub struct NoiseInboundFuture<T, C> {
     state: InboundState<T>,
-    _phantom: PhantomData<K>
+    _phantom: PhantomData<C>
 }
 
-impl<T, K> NoiseInboundFuture<T, K> {
+impl<T, C> NoiseInboundFuture<T, C> {
     pub(super) fn new(io: T, session: Result<snow::Session, NoiseError>) -> Self {
         match session {
             Ok(s) => NoiseInboundFuture {
@@ -67,11 +68,11 @@ enum InboundState<T> {
     Done
 }
 
-impl<T, K: DhKeys> Future for NoiseInboundFuture<T, K>
+impl<T, C: Protocol<C>> Future for NoiseInboundFuture<T, C>
 where
     T: AsyncRead + AsyncWrite
 {
-    type Item = (K::PublicKey, NoiseOutput<T>);
+    type Item = (PublicKey<C>, NoiseOutput<T>);
     type Error = NoiseError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -103,7 +104,7 @@ where
                 }
                 InboundState::RecvHandshake2(mut io) => {
                     if io.receive()?.is_ready() {
-                        let result = io.finish::<K>()?;
+                        let result = io.finish::<C>()?;
                         self.state = InboundState::Done;
                         return Ok(Async::Ready(result))
                     } else {
@@ -125,12 +126,12 @@ where
 /// 1. send message
 /// 2. receive message
 /// 3. send message
-pub struct NoiseOutboundFuture<T, K> {
+pub struct NoiseOutboundFuture<T, C> {
     state: OutboundState<T>,
-    _phantom: PhantomData<K>
+    _phantom: PhantomData<C>
 }
 
-impl<T, K> NoiseOutboundFuture<T, K> {
+impl<T, C> NoiseOutboundFuture<T, C> {
     pub(super) fn new(io: T, session: Result<snow::Session, NoiseError>) -> Self {
         match session {
             Ok(s) => NoiseOutboundFuture {
@@ -155,11 +156,11 @@ enum OutboundState<T> {
     Done
 }
 
-impl<T, K: DhKeys> Future for NoiseOutboundFuture<T, K>
+impl<T, C: Protocol<C>> Future for NoiseOutboundFuture<T, C>
 where
     T: AsyncRead + AsyncWrite
 {
-    type Item = (K::PublicKey, NoiseOutput<T>);
+    type Item = (PublicKey<C>, NoiseOutput<T>);
     type Error = NoiseError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -199,7 +200,7 @@ where
                 }
                 OutboundState::Flush2(mut io) => {
                     if io.flush()?.is_ready() {
-                        let result = io.finish::<K>()?;
+                        let result = io.finish::<C>()?;
                         self.state = OutboundState::Done;
                         return Ok(Async::Ready(result))
                     } else {

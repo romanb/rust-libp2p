@@ -18,7 +18,7 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-use crate::keys::x25519;
+use crate::{Keypair, X25519};
 use rand::FromEntropy;
 
 /// Custom `snow::CryptoResolver` which delegates to the `RingResolver`
@@ -36,7 +36,7 @@ impl snow::resolvers::CryptoResolver for Resolver {
 
     fn resolve_dh(&self, choice: &snow::params::DHChoice) -> Option<Box<dyn snow::types::Dh>> {
         if let snow::params::DHChoice::Curve25519 = choice {
-            Some(Box::new(x25519::Keypair::default()))
+            Some(Box::new(Keypair::<X25519>::default()))
         } else {
             None
         }

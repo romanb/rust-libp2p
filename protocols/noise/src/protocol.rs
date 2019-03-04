@@ -18,56 +18,32 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-use zeroize::Zeroize;
+pub mod x25519;
 
-/// DH keypair.
+use crate::{NoiseError, PublicKey};
+
 #[derive(Clone)]
-pub struct Keypair<T: Zeroize> {
-    pub(crate) secret: SecretKey<T>,
-    pub(crate) public: PublicKey<T>
-}
+pub struct ProtocolParams(pub(crate) snow::params::NoiseParams);
 
-impl<T: Zeroize> Keypair<T> {
-    pub fn public(&self) -> &PublicKey<T> {
-        &self.public
-    }
+/// Type tag for the IK handshake pattern.
+#[derive(Debug, Clone)]
+pub enum IK {}
 
-    pub fn secret(&self) -> &SecretKey<T> {
-        &self.secret
-    }
-}
+/// Type tag for the IX handshake pattern.
+#[derive(Debug, Clone)]
+pub enum IX {}
 
-/// DH secret key.
-#[derive(Clone)]
-pub struct SecretKey<T: Zeroize>(pub(crate) T);
+/// Type tag for the XX handshake pattern.
+#[derive(Debug, Clone)]
+pub enum XX {}
 
-impl<T: Zeroize> Drop for SecretKey<T> {
-    fn drop(&mut self) {
-        self.0.zeroize()
-    }
-}
+/// A Noise protocol over a DH curve `C`.
+pub trait Protocol<C> {
+    fn params_ik() -> ProtocolParams;
+    fn params_ix() -> ProtocolParams;
+    fn params_xx() -> ProtocolParams;
 
-impl<T: AsRef<[u8]> + Zeroize> AsRef<[u8]> for SecretKey<T> {
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_ref()
-    }
-}
-
-/// DH public key.
-#[derive(Clone)]
-pub struct PublicKey<T>(pub(crate) T);
-
-impl<T: AsRef<[u8]>> PartialEq for PublicKey<T> {
-    fn eq(&self, other: &PublicKey<T>) -> bool {
-        self.as_ref() == other.as_ref()
-    }
-}
-
-impl<T: AsRef<[u8]>> Eq for PublicKey<T> {}
-
-impl<T: AsRef<[u8]>> AsRef<[u8]> for PublicKey<T> {
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_ref()
-    }
+    /// Construct a DH public key from a byte slice.
+    fn public_from_bytes(s: &[u8]) -> Result<PublicKey<C>, NoiseError>;
 }
 

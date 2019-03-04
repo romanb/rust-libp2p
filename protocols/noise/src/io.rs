@@ -18,7 +18,7 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-use crate::{NoiseError, keys::DhKeys};
+use crate::{NoiseError, Protocol, PublicKey};
 use futures::Poll;
 use log::{debug, trace};
 use snow;
@@ -81,11 +81,14 @@ impl<T: AsyncRead + AsyncWrite> Handshake<T> {
     ///
     /// This turns the noise session into transport mode and returns the remote's static
     /// public key as well as the established session for further communication.
-    pub(super) fn finish<K: DhKeys>(self) -> Result<(K::PublicKey, NoiseOutput<T>), NoiseError> {
+    pub(super) fn finish<C>(self) -> Result<(PublicKey<C>, NoiseOutput<T>), NoiseError>
+    where
+        C: Protocol<C>
+    {
         let s = self.0.session.into_transport_mode()?;
         let p = s.get_remote_static()
             .ok_or(NoiseError::InvalidKey)
-            .and_then(|k| K::public_from_slice(k))?;
+            .and_then(C::public_from_bytes)?;
         Ok((p, NoiseOutput { session: s, .. self.0 }))
     }
 }
