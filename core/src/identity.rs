@@ -81,8 +81,9 @@ impl Keypair {
     ///
     /// [RFC5915]: https://tools.ietf.org/html/rfc5915
     #[cfg(feature = "secp256k1")]
-    pub fn secp256k1_from_der(sk_der: &mut [u8]) -> Result<Keypair, DecodingError> {
-        secp256k1::Keypair::from_secret_der(sk_der).map(Keypair::Secp256k1)
+    pub fn secp256k1_from_der(der: &mut [u8]) -> Result<Keypair, DecodingError> {
+        secp256k1::SecretKey::from_der(der)
+            .map(|sk| Keypair::Secp256k1(secp256k1::Keypair::from(sk)))
     }
 
     /// Sign a message using the private key of this keypair, producing
@@ -94,7 +95,7 @@ impl Keypair {
             #[cfg(not(any(target_os = "emscripten", target_os = "unknown")))]
             Rsa(ref pair) => pair.sign(msg),
             #[cfg(feature = "secp256k1")]
-            Secp256k1(ref pair) => Ok(pair.sign(msg)),
+            Secp256k1(ref pair) => Ok(pair.secret().sign(msg)),
         }
     }
 
@@ -106,7 +107,7 @@ impl Keypair {
             #[cfg(not(any(target_os = "emscripten", target_os = "unknown")))]
             Rsa(pair) => PublicKey::Rsa(pair.public()),
             #[cfg(feature = "secp256k1")]
-            Secp256k1(pair) => PublicKey::Secp256k1(pair.public()),
+            Secp256k1(pair) => PublicKey::Secp256k1(pair.public().clone()),
         }
     }
 }

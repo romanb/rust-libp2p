@@ -25,24 +25,11 @@ use zeroize::Zeroize;
 
 /// An Ed25519 keypair.
 pub struct Keypair(ed25519::Keypair);
-/// An Ed25519 public key.
-#[derive(PartialEq, Eq, Debug, Clone)]
-pub struct PublicKey(ed25519::PublicKey);
 
 impl Keypair {
     /// Generate a new Ed25519 keypair.
     pub fn generate() -> Keypair {
         Keypair(ed25519::Keypair::generate(&mut rand::thread_rng()))
-    }
-
-    /// Create an Ed25519 keypair from a secret key, zeroing the input on success.
-    pub fn from_secret(mut sk: impl AsMut<[u8]>) -> Result<Keypair, DecodingError> {
-        let sk_bytes = sk.as_mut();
-        let secret = ed25519::SecretKey::from_bytes(&*sk_bytes)
-            .map_err(|e| DecodingError::new("Ed25519 secret key", e.compat()))?;
-        sk_bytes.zeroize();
-        let public = ed25519::PublicKey::from(&secret);
-        Ok(Keypair(ed25519::Keypair { secret, public }))
     }
 
     /// Encode the keypair into a byte array by concatenating the bytes
@@ -69,11 +56,6 @@ impl Keypair {
     pub fn public(&self) -> PublicKey {
         PublicKey(self.0.public)
     }
-
-    /// View the bytes of the secret key (i.e. the scalar).
-    pub fn secret_bytes(&self) -> &[u8; 32] {
-        self.0.secret.as_bytes()
-    }
 }
 
 impl Clone for Keypair {
@@ -87,6 +69,26 @@ impl Clone for Keypair {
         Keypair(ed25519::Keypair { secret, public })
     }
 }
+
+/// Demote an Ed25519 keypair to a secret key.
+impl From<Keypair> for SecretKey {
+    fn from(kp: Keypair) -> SecretKey {
+        SecretKey(kp.0.secret)
+    }
+}
+
+/// Promote an Ed25519 secret key into a keypair.
+impl From<SecretKey> for Keypair {
+    fn from(sk: SecretKey) -> Keypair {
+        let secret = sk.0;
+        let public = ed25519::PublicKey::from(&secret);
+        Keypair(ed25519::Keypair { secret, public })
+    }
+}
+
+/// An Ed25519 public key.
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub struct PublicKey(ed25519::PublicKey);
 
 impl PublicKey {
     /// Verify the Ed25519 signature on a message using the public key.
@@ -108,6 +110,29 @@ impl PublicKey {
     }
 }
 
+/// An Ed25519 secret key.
+pub struct SecretKey(ed25519::SecretKey);
+
+/// View the bytes of the secret key.
+impl AsRef<[u8]> for SecretKey {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_bytes()
+    }
+}
+
+impl SecretKey {
+    /// Create an Ed25519 secret key from a byte slice, zeroing the input on success.
+    /// If the bytes do not constitute a valid Ed25519 secret key, an error is
+    /// returned.
+    pub fn from_bytes(mut sk_bytes: impl AsMut<[u8]>) -> Result<SecretKey, DecodingError> {
+        let sk_bytes = sk_bytes.as_mut();
+        let secret = ed25519::SecretKey::from_bytes(&*sk_bytes)
+            .map_err(|e| DecodingError::new("Ed25519 secret key", e.compat()))?;
+        sk_bytes.zeroize();
+        Ok(SecretKey(secret))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -116,7 +141,7 @@ mod tests {
     fn eq_keypairs(kp1: &Keypair, kp2: &Keypair) -> bool {
         kp1.public() == kp2.public()
             &&
-        kp1.secret_bytes() == kp2.secret_bytes()
+        kp1.0.secret.as_bytes() == kp2.0.secret.as_bytes()
     }
 
     #[test]
@@ -136,8 +161,8 @@ mod tests {
     fn ed25519_keypair_from_secret() {
         fn prop() -> bool {
             let kp1 = Keypair::generate();
-            let mut sk = kp1.secret_bytes().clone();
-            let kp2 = Keypair::from_secret(&mut sk).unwrap();
+            let mut sk = kp1.0.secret.to_bytes();
+            let kp2 = Keypair::from(SecretKey::from_bytes(&mut sk).unwrap());
             eq_keypairs(&kp1, &kp2)
                 &&
             sk == [0u8; 32]
