@@ -34,56 +34,96 @@ lazy_static! {
 /// A Secp256k1 keypair.
 #[derive(Clone)]
 pub struct Keypair {
-    secret: secp::key::SecretKey,
-    public: secp::key::PublicKey
+    secret: SecretKey,
+    public: PublicKey
 }
 
 impl Keypair {
-
     /// Generate a new sec256k1 `Keypair`.
     pub fn generate() -> Keypair {
-        let secret = secp::key::SecretKey::new(&mut secp::rand::thread_rng());
-        let public = secp::key::PublicKey::from_secret_key(&SECP, &secret);
-        Keypair { secret, public }
+        Keypair::from(SecretKey::generate())
     }
 
     /// Get the public key of this keypair.
-    pub fn public(&self) -> PublicKey {
-        PublicKey(self.public.clone())
+    pub fn public(&self) -> &PublicKey {
+        &self.public
     }
 
-    /// Decode a keypair from a byte slice representing the secret key,
-    /// zeroing the slice on success.
-    fn from_secret(mut sk: impl AsMut<[u8]>) -> Result<Keypair, DecodingError> {
+    /// Get the secret key of this keypair.
+    pub fn secret(&self) -> &SecretKey {
+        &self.secret
+    }
+}
+
+/// Promote a Secp256k1 secret key into a keypair.
+impl From<SecretKey> for Keypair {
+    fn from(secret: SecretKey) -> Keypair {
+        let public = PublicKey(secp::key::PublicKey::from_secret_key(&SECP, &secret.0));
+        Keypair { secret, public }
+    }
+}
+
+/// Demote a Secp256k1 keypair into a secret key.
+impl From<Keypair> for SecretKey {
+    fn from(kp: Keypair) -> SecretKey {
+        kp.secret
+    }
+}
+
+/// A Secp256k1 secret key.
+#[derive(Clone)]
+pub struct SecretKey(secp::key::SecretKey);
+
+/// View the bytes of the secret key.
+impl AsRef<[u8]> for SecretKey {
+    fn as_ref(&self) -> &[u8] {
+        &self.0[..]
+    }
+}
+
+impl SecretKey {
+    /// Generate a new Secp256k1 secret key.
+    pub fn generate() -> SecretKey {
+        SecretKey(secp::key::SecretKey::new(&mut secp::rand::thread_rng()))
+    }
+
+    /// Create a secret key from a byte slice, zeroing the slice on success.
+    /// If the bytes do not constitute a valid Secp256k1 secret key, an
+    /// error is returned.
+    fn from_bytes(mut sk: impl AsMut<[u8]>) -> Result<SecretKey, DecodingError> {
         let sk_bytes = sk.as_mut();
         let secret = secp::key::SecretKey::from_slice(&*sk_bytes)
             .map_err(|e| DecodingError::new("Secp256k1 secret key", e))?;
-        sk_bytes.zeroize();
-        let public = secp::key::PublicKey::from_secret_key(&SECP, &secret);
-        Ok(Keypair { secret, public })
+        Ok(SecretKey(secret))
     }
 
-    /// Decode a keypair from a DER-encoded Secp256k1 secret key in an ECPrivateKey
+    /// Decode a DER-encoded Secp256k1 secret key in an ECPrivateKey
     /// structure as defined in [RFC5915].
     ///
     /// [RFC5915]: https://tools.ietf.org/html/rfc5915
-    pub fn from_secret_der(mut sk: impl AsMut<[u8]>) -> Result<Keypair, DecodingError> {
+    pub fn from_der(mut der: impl AsMut<[u8]>) -> Result<SecretKey, DecodingError> {
         // TODO: Stricter parsing.
-        let sk_bytes = sk.as_mut();
-        let obj: Vec<DerObject> = FromDerObject::deserialize((&*sk_bytes).iter())
+        let der_obj = der.as_mut();
+        let obj: Vec<DerObject> = FromDerObject::deserialize((&*der_obj).iter())
             .map_err(|e| DecodingError::new("Secp256k1 DER ECPrivateKey", e))?;
-        sk_bytes.zeroize();
+        der_obj.zeroize();
         let sk_obj = obj.into_iter().nth(1)
             .ok_or_else(|| "Not enough elements in DER".to_string())?;
-        let mut sk: Vec<u8> = FromDerObject::from_der_object(sk_obj).map_err(|e| e.to_string())?;
-        Self::from_secret(&mut sk)
+        let mut sk_bytes: Vec<u8> = FromDerObject::from_der_object(sk_obj)
+            .map_err(|e| e.to_string())?;
+        let sk = SecretKey::from_bytes(&mut sk_bytes)?;
+        sk_bytes.zeroize();
+        Ok(sk)
     }
 
-    /// Sign a message using the private key of this keypair.
+    /// Sign a message with this secret key, producing a DER-encoded
+    /// ECDSA signature, as defined in [RFC3278].
+    ///
+    /// [RFC3278]: https://tools.ietf.org/html/rfc3278#section-8.2
     pub fn sign(&self, msg: &[u8]) -> Vec<u8> {
         let m = Message::from_slice(Sha256::digest(&msg).as_ref())
             .expect("digest output length doesn't match secp256k1 input length");
-        SECP.sign(&m, &self.secret).serialize_der()
+        SECP.sign(&m, &self.0).serialize_der()
     }
 }
 
@@ -105,7 +145,8 @@ impl PublicKey {
         self.0.serialize()
     }
 
-    /// Decode a public key from a byte array as produced by `encode`.
+    /// Decode a public key from a byte slice in the the format produced
+    /// by `encode`.
     pub fn decode(k: &[u8]) -> Result<PublicKey, DecodingError> {
         secp256k1::PublicKey::from_slice(k)
             .map_err(|e| DecodingError::new("Secp256k1 public key", e))
