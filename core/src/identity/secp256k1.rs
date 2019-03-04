@@ -116,7 +116,10 @@ impl SecretKey {
         Ok(sk)
     }
 
-    /// Sign a message with this secret key.
+    /// Sign a message with this secret key, producing a DER-encoded
+    /// ECDSA signature, as defined in [RFC3278].
+    ///
+    /// [RFC3278]: https://tools.ietf.org/html/rfc3278#section-8.2
     pub fn sign(&self, msg: &[u8]) -> Vec<u8> {
         let m = Message::from_slice(Sha256::digest(&msg).as_ref())
             .expect("digest output length doesn't match secp256k1 input length");
