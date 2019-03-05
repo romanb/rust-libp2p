@@ -56,14 +56,19 @@ impl Keypair {
     pub fn public(&self) -> PublicKey {
         PublicKey(self.0.public)
     }
+
+    /// Get the secret key of this keypair.
+    pub fn secret(&self) -> SecretKey {
+        SecretKey::from_bytes(&mut self.0.secret.to_bytes())
+            .expect("ed25519::SecretKey::from_bytes(to_bytes(k)) != k")
+    }
 }
 
 impl Clone for Keypair {
     fn clone(&self) -> Keypair {
         let mut sk_bytes = self.0.secret.to_bytes();
-        let secret = ed25519::SecretKey::from_bytes(&sk_bytes)
-            .expect("ed25519::SecretKey::from_bytes(to_bytes(k)) != k");
-        sk_bytes.zeroize();
+        let secret = SecretKey::from_bytes(&mut sk_bytes)
+            .expect("ed25519::SecretKey::from_bytes(to_bytes(k)) != k").0;
         let public = ed25519::PublicKey::from_bytes(&self.0.public.to_bytes())
             .expect("ed25519::PublicKey::from_bytes(to_bytes(k)) != k");
         Keypair(ed25519::Keypair { secret, public })
@@ -120,7 +125,20 @@ impl AsRef<[u8]> for SecretKey {
     }
 }
 
+impl Clone for SecretKey {
+    fn clone(&self) -> SecretKey {
+        let mut sk_bytes = self.0.to_bytes();
+        Self::from_bytes(&mut sk_bytes)
+            .expect("ed25519::SecretKey::from_bytes(to_bytes(k)) != k")
+    }
+}
+
 impl SecretKey {
+    /// Generate a new Ed25519 secret key.
+    pub fn generate() -> SecretKey {
+        SecretKey(ed25519::SecretKey::generate(&mut rand::thread_rng()))
+    }
+
     /// Create an Ed25519 secret key from a byte slice, zeroing the input on success.
     /// If the bytes do not constitute a valid Ed25519 secret key, an error is
     /// returned.

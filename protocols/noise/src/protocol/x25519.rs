@@ -18,8 +18,9 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
+//! Noise protocols based on X25519.
+
 use crate::{NoiseConfig, NoiseError, Protocol, ProtocolParams};
-use crate::keys::*;
 use curve25519_dalek::edwards::CompressedEdwardsY;
 use lazy_static::lazy_static;
 use libp2p_core::UpgradeInfo;
@@ -35,21 +36,34 @@ lazy_static! {
     static ref PARAMS_IK: ProtocolParams = "Noise_IK_25519_ChaChaPoly_SHA256"
         .parse()
         .map(ProtocolParams)
-        .expect("Invalid handshake pattern");
+        .expect("Invalid protocol name");
 
     static ref PARAMS_IX: ProtocolParams = "Noise_IX_25519_ChaChaPoly_SHA256"
         .parse()
         .map(ProtocolParams)
-        .expect("Invalid handshake pattern");
+        .expect("Invalid protocol name");
 
     static ref PARAMS_XX: ProtocolParams = "Noise_XX_25519_ChaChaPoly_SHA256"
         .parse()
         .map(ProtocolParams)
-        .expect("Invalid handshake pattern");
+        .expect("Invalid protocol name");
 }
 
+/// A X25519 key.
 #[derive(Clone)]
 pub struct X25519([u8; 32]);
+
+impl AsRef<[u8]> for X25519 {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+impl Zeroize for X25519 {
+    fn zeroize(&mut self) {
+        self.0.zeroize()
+    }
+}
 
 impl UpgradeInfo for NoiseConfig<IX, X25519> {
     type Info = &'static [u8];
@@ -87,18 +101,7 @@ impl UpgradeInfo for NoiseConfig<IK, X25519, PublicKey<X25519>> {
     }
 }
 
-impl AsRef<[u8]> for X25519 {
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_ref()
-    }
-}
-
-impl Zeroize for X25519 {
-    fn zeroize(&mut self) {
-        self.0.zeroize()
-    }
-}
-
+/// Noise protocols for X25519.
 impl Protocol<X25519> for X25519 {
     fn params_ik() -> ProtocolParams {
         PARAMS_IK.clone()
@@ -125,7 +128,7 @@ impl Protocol<X25519> for X25519 {
 impl Keypair<X25519> {
     /// An "empty" keypair as a starting state for DH computations in `snow`,
     /// which get manipulated through the `snow::types::Dh` interface.
-    pub(crate) fn default() -> Self {
+    pub(super) fn default() -> Self {
         Keypair {
             secret: SecretKey(X25519([0u8; 32])),
             public: PublicKey(X25519([0u8; 32]))
@@ -140,33 +143,9 @@ impl Keypair<X25519> {
         sk_bytes.zeroize();
         Self::from(sk)
     }
-
-    /// Construct a X25519 keypair from an Ed25519 keypair.
-    ///
-    /// *Note*: If the Ed25519 keypair is already used in the context
-    /// of other cryptographic protocols outside of Noise, e.g. for
-    /// signing in the `secio` protocol, it should be preferred to
-    /// create a new keypair for use in the Noise protocol.
-    ///
-    /// See also:
-    ///
-    /// [Noise: Static Key Reuse](http://www.noiseprotocol.org/noise.html#security-considerations)
-    /// [Ed25519 to Curve25519](https://libsodium.gitbook.io/doc/advanced/ed25519-curve25519)
-    pub fn from_ed25519(ed: &ed25519::Keypair) -> Keypair<X25519> {
-        // An Ed25519 public key is derived off the left half of the SHA512 of the
-        // secret scalar, hence a matching conversion of the secret key must do
-        // the same to yield a Curve25519 keypair with the same public key.
-        let ed25519_sk = ed.secret_bytes();
-        let mut curve25519_sk: [u8; 32] = [0; 32];
-        let hash = digest(&SHA512, ed25519_sk);
-        curve25519_sk.copy_from_slice(&hash.as_ref()[..32]);
-        let sk = SecretKey(X25519(curve25519_sk)); // Copy
-        curve25519_sk.zeroize();
-        Self::from(sk)
-    }
-
 }
 
+/// Promote a X25519 secret key into a keypair.
 impl From<SecretKey<X25519>> for Keypair<X25519> {
     fn from(secret: SecretKey<X25519>) -> Keypair<X25519> {
         let public = PublicKey(X25519(x25519((secret.0).0, X25519_BASEPOINT_BYTES)));
@@ -176,7 +155,7 @@ impl From<SecretKey<X25519>> for Keypair<X25519> {
 
 impl PublicKey<X25519> {
     /// Construct a curve25519 public key from an Ed25519 public key.
-    pub fn from_ed25519(pk: &ed25519::PublicKey) -> PublicKey<X25519> {
+    pub fn from_ed25519(pk: &ed25519::PublicKey) -> Self {
         PublicKey(X25519(CompressedEdwardsY(pk.encode())
             .decompress()
             .expect("An Ed25519 public key is a valid point by construction.")
@@ -184,6 +163,33 @@ impl PublicKey<X25519> {
     }
 }
 
+impl SecretKey<X25519> {
+    /// Construct a X25519 secret key from a Ed25519 secret key.
+    ///
+    /// *Note*: If the Ed25519 secret key is already used in the context
+    /// of other cryptographic protocols outside of Noise, e.g. for
+    /// signing in the `secio` protocol, it should be preferred to
+    /// create a new keypair for use in the Noise protocol.
+    ///
+    /// See also:
+    ///
+    /// [Noise: Static Key Reuse](http://www.noiseprotocol.org/noise.html#security-considerations)
+    /// [Ed25519 to Curve25519](https://libsodium.gitbook.io/doc/advanced/ed25519-curve25519)
+    pub fn from_ed25519(ed25519_sk: &ed25519::SecretKey) -> Self {
+        // An Ed25519 public key is derived off the left half of the SHA512 of the
+        // secret scalar, hence a matching conversion of the secret key must do
+        // the same to yield a Curve25519 keypair with the same public key.
+        // let ed25519_sk = ed25519::SecretKey::from(ed);
+        let mut curve25519_sk: [u8; 32] = [0; 32];
+        let hash = digest(&SHA512, ed25519_sk.as_ref());
+        curve25519_sk.copy_from_slice(&hash.as_ref()[..32]);
+        let sk = SecretKey(X25519(curve25519_sk)); // Copy
+        curve25519_sk.zeroize();
+        sk
+    }
+}
+
+#[doc(hidden)]
 impl snow::types::Dh for Keypair<X25519> {
     fn name(&self) -> &'static str { "25519" }
     fn pub_len(&self) -> usize { 32 }
@@ -231,7 +237,7 @@ mod tests {
     fn prop_ed25519_to_x25519_matches_libsodium() {
         fn prop() -> bool {
             let ed25519 = ed25519::Keypair::generate();
-            let x25519 = Keypair::from_ed25519(&ed25519);
+            let x25519 = Keypair::from(SecretKey::from_ed25519(&ed25519.secret()));
 
             let sodium_sec = ed25519_sk_to_curve25519(&sign::SecretKey(ed25519.encode()));
             let sodium_pub = ed25519_pk_to_curve25519(&sign::PublicKey(ed25519.public().encode().clone()));
@@ -260,9 +266,9 @@ mod tests {
     fn prop_public_ed25519_to_x25519_matches() {
         fn prop() -> bool {
             let ed25519 = ed25519::Keypair::generate();
-            let x25519 = Keypair::from_ed25519(&ed25519);
+            let x25519 = Keypair::from(SecretKey::from_ed25519(&ed25519.secret()));
             let x25519_public = PublicKey::from_ed25519(&ed25519.public());
-            x25519.public.as_ref() == x25519_public.as_ref()
+            x25519.public == x25519_public
         }
 
         quickcheck(prop as fn() -> _);

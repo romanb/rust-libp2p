@@ -18,12 +18,25 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
+//! Components of a Noise protocol.
+
 pub mod x25519;
 
-use crate::{NoiseError, PublicKey};
+use crate::NoiseError;
+use rand::FromEntropy;
+use zeroize::Zeroize;
 
+/// The parameters of a Noise protocol, consisting of a choice
+/// for a handshake pattern as well as DH, cipher and hash functions.
 #[derive(Clone)]
-pub struct ProtocolParams(pub(crate) snow::params::NoiseParams);
+pub struct ProtocolParams(snow::params::NoiseParams);
+
+impl ProtocolParams {
+    /// Turn the protocol parameters into a session builder.
+    pub(crate) fn into_builder(self) -> snow::Builder<'static> {
+        snow::Builder::with_resolver(self.0, Box::new(Resolver))
+    }
+}
 
 /// Type tag for the IK handshake pattern.
 #[derive(Debug, Clone)]
@@ -37,13 +50,124 @@ pub enum IX {}
 #[derive(Debug, Clone)]
 pub enum XX {}
 
-/// A Noise protocol over a DH curve `C`.
+/// A Noise protocol over DH keys of type `C`. The choice of `C` determines the
+/// protocol parameters for each handshake pattern.
 pub trait Protocol<C> {
+    /// The protocol parameters for the IK handshake pattern.
     fn params_ik() -> ProtocolParams;
+    /// The protocol parameters for the IX handshake pattern.
     fn params_ix() -> ProtocolParams;
+    /// The protocol parameters for the XX handshake pattern.
     fn params_xx() -> ProtocolParams;
-
     /// Construct a DH public key from a byte slice.
     fn public_from_bytes(s: &[u8]) -> Result<PublicKey<C>, NoiseError>;
 }
+
+/// DH keypair.
+#[derive(Clone)]
+pub struct Keypair<T: Zeroize> {
+    secret: SecretKey<T>,
+    public: PublicKey<T>
+}
+
+impl<T: Zeroize> Keypair<T> {
+    /// The public key of the DH keypair.
+    pub fn public(&self) -> &PublicKey<T> {
+        &self.public
+    }
+
+    /// The secret key of the DH keypair.
+    pub fn secret(&self) -> &SecretKey<T> {
+        &self.secret
+    }
+}
+
+/// DH secret key.
+#[derive(Clone)]
+pub struct SecretKey<T: Zeroize>(T);
+
+impl<T: Zeroize> Drop for SecretKey<T> {
+    fn drop(&mut self) {
+        self.0.zeroize()
+    }
+}
+
+impl<T: AsRef<[u8]> + Zeroize> AsRef<[u8]> for SecretKey<T> {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+/// DH public key.
+#[derive(Clone)]
+pub struct PublicKey<T>(T);
+
+impl<T: AsRef<[u8]>> PartialEq for PublicKey<T> {
+    fn eq(&self, other: &PublicKey<T>) -> bool {
+        self.as_ref() == other.as_ref()
+    }
+}
+
+impl<T: AsRef<[u8]>> Eq for PublicKey<T> {}
+
+impl<T: AsRef<[u8]>> AsRef<[u8]> for PublicKey<T> {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+/// Custom `snow::CryptoResolver` which delegates to the `RingResolver`
+/// for hash functions and symmetric ciphers, while using x25519-dalek
+/// for Curve25519 DH. We do not use the default resolver for any of
+/// the choices, because it comes with unwanted additional dependencies,
+/// notably rust-crypto, and to avoid being affected by changes to
+/// the defaults.
+struct Resolver;
+
+impl snow::resolvers::CryptoResolver for Resolver {
+    fn resolve_rng(&self) -> Option<Box<dyn snow::types::Random>> {
+        Some(Box::new(Rng(rand::rngs::StdRng::from_entropy())))
+    }
+
+    fn resolve_dh(&self, choice: &snow::params::DHChoice) -> Option<Box<dyn snow::types::Dh>> {
+        if let snow::params::DHChoice::Curve25519 = choice {
+            Some(Box::new(Keypair::<x25519::X25519>::default()))
+        } else {
+            None
+        }
+    }
+
+    fn resolve_hash(&self, choice: &snow::params::HashChoice) -> Option<Box<dyn snow::types::Hash>> {
+        snow::resolvers::RingResolver.resolve_hash(choice)
+    }
+
+    fn resolve_cipher(&self, choice: &snow::params::CipherChoice) -> Option<Box<dyn snow::types::Cipher>> {
+        snow::resolvers::RingResolver.resolve_cipher(choice)
+    }
+}
+
+/// Wrapper around a CSPRNG to implement `snow::Random` trait for.
+struct Rng(rand::rngs::StdRng);
+
+impl rand::RngCore for Rng {
+    fn next_u32(&mut self) -> u32 {
+        self.0.next_u32()
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        self.0.next_u64()
+    }
+
+    fn fill_bytes(&mut self, dest: &mut [u8]) {
+        self.0.fill_bytes(dest)
+    }
+
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand::Error> {
+        self.0.try_fill_bytes(dest)
+    }
+}
+
+impl rand::CryptoRng for Rng {}
+
+impl snow::types::Random for Rng {}
 

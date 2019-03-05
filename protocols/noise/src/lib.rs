@@ -21,7 +21,8 @@
 //! [Noise protocol framework][noise] support for libp2p.
 //!
 //! This crate provides `libp2p_core::InboundUpgrade` and `libp2p_core::OutboundUpgrade`
-//! implementations for various noise handshake patterns, currently IK, IX, and XX.
+//! implementations for various noise handshake patterns (currently IK, IX, and XX)
+//! over a particular choice of DH key agreement (currently only X25519).
 //!
 //! All upgrades produce as output a pair, consisting of the remote's static public key
 //! and a `NoiseOutput` which represents the established cryptographic session with the
@@ -46,24 +47,19 @@
 //! [noise]: http://noiseprotocol.org/
 
 mod error;
-mod keys;
 mod io;
 mod protocol;
-mod util;
 
 pub mod rt1;
 pub mod rt15;
 
 pub use error::NoiseError;
 pub use io::NoiseOutput;
-pub use keys::{Keypair, PublicKey};
-pub use protocol::{Protocol, ProtocolParams, IX, IK, XX};
-pub use protocol::x25519::{self, X25519};
+pub use protocol::{Keypair, PublicKey, Protocol, ProtocolParams, IX, IK, XX};
+pub use protocol::x25519::X25519;
 
 use libp2p_core::{UpgradeInfo, InboundUpgrade, OutboundUpgrade};
-use snow;
 use tokio_io::{AsyncRead, AsyncWrite};
-use util::Resolver;
 use zeroize::Zeroize;
 
 /// The protocol upgrade configuration.
@@ -136,7 +132,7 @@ where
     type Future = rt1::NoiseInboundFuture<T, C>;
 
     fn upgrade_inbound(self, socket: T, _: Self::Info) -> Self::Future {
-        let session = snow::Builder::with_resolver(self.params.0, Box::new(Resolver))
+        let session = self.params.into_builder()
             .local_private_key(self.keys.secret().as_ref())
             .build_responder()
             .map_err(NoiseError::from);
@@ -155,7 +151,7 @@ where
     type Future = rt1::NoiseOutboundFuture<T, C>;
 
     fn upgrade_outbound(self, socket: T, _: Self::Info) -> Self::Future {
-        let session = snow::Builder::with_resolver(self.params.0, Box::new(Resolver))
+        let session = self.params.into_builder()
             .local_private_key(self.keys.secret().as_ref())
             .build_initiator()
             .map_err(NoiseError::from);
@@ -176,7 +172,7 @@ where
     type Future = rt15::NoiseInboundFuture<T, C>;
 
     fn upgrade_inbound(self, socket: T, _: Self::Info) -> Self::Future {
-        let session = snow::Builder::with_resolver(self.params.0, Box::new(Resolver))
+        let session = self.params.into_builder()
             .local_private_key(self.keys.secret().as_ref())
             .build_responder()
             .map_err(NoiseError::from);
@@ -195,7 +191,7 @@ where
     type Future = rt15::NoiseOutboundFuture<T, C>;
 
     fn upgrade_outbound(self, socket: T, _: Self::Info) -> Self::Future {
-        let session = snow::Builder::with_resolver(self.params.0, Box::new(Resolver))
+        let session = self.params.into_builder()
             .local_private_key(self.keys.secret().as_ref())
             .build_initiator()
             .map_err(NoiseError::from);
@@ -216,7 +212,7 @@ where
     type Future = rt1::NoiseInboundFuture<T, C>;
 
     fn upgrade_inbound(self, socket: T, _: Self::Info) -> Self::Future {
-        let session = snow::Builder::with_resolver(self.params.0, Box::new(Resolver))
+        let session = self.params.into_builder()
             .local_private_key(self.keys.secret().as_ref())
             .build_responder()
             .map_err(NoiseError::from);
@@ -235,7 +231,7 @@ where
     type Future = rt1::NoiseOutboundFuture<T, C>;
 
     fn upgrade_outbound(self, socket: T, _: Self::Info) -> Self::Future {
-        let session = snow::Builder::with_resolver(self.params.0, Box::new(Resolver))
+        let session = self.params.into_builder()
             .local_private_key(self.keys.secret().as_ref())
             .remote_public_key(self.remote.as_ref())
             .build_initiator()

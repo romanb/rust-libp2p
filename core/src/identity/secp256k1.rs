@@ -90,7 +90,7 @@ impl SecretKey {
     /// Create a secret key from a byte slice, zeroing the slice on success.
     /// If the bytes do not constitute a valid Secp256k1 secret key, an
     /// error is returned.
-    fn from_bytes(mut sk: impl AsMut<[u8]>) -> Result<SecretKey, DecodingError> {
+    pub fn from_bytes(mut sk: impl AsMut<[u8]>) -> Result<SecretKey, DecodingError> {
         let sk_bytes = sk.as_mut();
         let secret = secp::key::SecretKey::from_slice(&*sk_bytes)
             .map_err(|e| DecodingError::new("Secp256k1 secret key", e))?;
