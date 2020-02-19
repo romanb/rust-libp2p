@@ -23,7 +23,7 @@ use crate::{
     connection::{Close, Connected, ConnectionError},
 };
 use futures::{prelude::*, channel::mpsc, stream};
-use std::{pin::Pin, task::Context, task::Poll};
+use std::{error::Error, pin::Pin, task::Context, task::Poll};
 use super::{Connection, ConnectionHandler, ConnectResult, IntoConnectionHandler, Substream};
 
 /// Identifier of a [`Task`] in a [`Manager`](super::Manager).
@@ -39,7 +39,11 @@ pub enum Command<T> {
 
 /// Events that a task can emit to its manager.
 #[derive(Debug)]
-pub enum Event<T, H, TE, HE, C> {
+pub enum Event<T, H, TE, HE, C>
+where
+    TE: Error + 'static,
+    HE: Error + 'static,
+{
     /// A connection to a node has succeeded.
     Established { id: TaskId, info: Connected<C> },
     /// A connection produced an error.
@@ -51,7 +55,11 @@ pub enum Event<T, H, TE, HE, C> {
     Notify { id: TaskId, event: T }
 }
 
-impl<T, H, TE, HE, C> Event<T, H, TE, HE, C> {
+impl<T, H, TE, HE, C> Event<T, H, TE, HE, C>
+where
+    TE: Error,
+    HE: Error,
+{
     pub fn id(&self) -> &TaskId {
         match self {
             Event::Established { id, .. } => id,
@@ -64,9 +72,10 @@ impl<T, H, TE, HE, C> Event<T, H, TE, HE, C> {
 /// A `Task` is a [`Future`] that handles a single connection.
 pub struct Task<F, M, H, I, O, E, C>
 where
+    E: Error + 'static,
     M: StreamMuxer,
     H: IntoConnectionHandler<C>,
-    H::Handler: ConnectionHandler<Substream = Substream<M>>
+    H::Handler: ConnectionHandler<Substream = Substream<M>>,
 {
     /// The ID of this task.
     id: TaskId,
@@ -83,9 +92,10 @@ where
 
 impl<F, M, H, I, O, E, C> Task<F, M, H, I, O, E, C>
 where
+    E: Error,
     M: StreamMuxer,
     H: IntoConnectionHandler<C>,
-    H::Handler: ConnectionHandler<Substream = Substream<M>>
+    H::Handler: ConnectionHandler<Substream = Substream<M>>,
 {
     /// Create a new task to connect and handle some node.
     pub fn pending(
@@ -126,9 +136,10 @@ where
 /// The state associated with the `Task` of a connection.
 enum State<F, M, H, I, O, E, C>
 where
+    E: Error + 'static,
     M: StreamMuxer,
     H: IntoConnectionHandler<C>,
-    H::Handler: ConnectionHandler<Substream = Substream<M>>
+    H::Handler: ConnectionHandler<Substream = Substream<M>>,
 {
     /// The task is waiting for the connection to be established.
     Pending {
@@ -165,6 +176,7 @@ where
 
 impl<F, M, H, I, O, E, C> Unpin for Task<F, M, H, I, O, E, C>
 where
+    E: Error,
     M: StreamMuxer,
     H: IntoConnectionHandler<C>,
     H::Handler: ConnectionHandler<Substream = Substream<M>>
@@ -173,10 +185,11 @@ where
 
 impl<F, M, H, I, O, E, C> Future for Task<F, M, H, I, O, E, C>
 where
+    E: Error + 'static,
     M: StreamMuxer,
     F: Future<Output = ConnectResult<C, M, <H::Handler as ConnectionHandler>::Error, E>>,
     H: IntoConnectionHandler<C>,
-    H::Handler: ConnectionHandler<Substream = Substream<M>, InEvent = I, OutEvent = O>
+    H::Handler: ConnectionHandler<Substream = Substream<M>, InEvent = I, OutEvent = O>,
 {
     type Output = ();
 

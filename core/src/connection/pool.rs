@@ -43,10 +43,14 @@ use either::Either;
 use fnv::FnvHashMap;
 use futures::prelude::*;
 use smallvec::SmallVec;
-use std::{error, fmt, hash::Hash, task::Context, task::Poll};
+use std::{error::Error, fmt, hash::Hash, task::Context, task::Poll};
 
 /// A connection `Pool` manages a set of connections for each peer.
-pub struct Pool<TInEvent, TOutEvent, THandler, TTransErr, THandlerErr, TConnInfo = PeerId, TPeerId = PeerId> {
+pub struct Pool<TInEvent, TOutEvent, THandler, TTransErr, THandlerErr, TConnInfo = PeerId, TPeerId = PeerId>
+where
+    TTransErr: Error + 'static,
+    THandlerErr: Error + 'static,
+{
     local_id: TPeerId,
 
     /// The configuration of the pool.
@@ -68,6 +72,9 @@ pub struct Pool<TInEvent, TOutEvent, THandler, TTransErr, THandlerErr, TConnInfo
 
 impl<TInEvent, TOutEvent, THandler, TTransErr, THandlerErr, TConnInfo, TPeerId> fmt::Debug
 for Pool<TInEvent, TOutEvent, THandler, TTransErr, THandlerErr, TConnInfo, TPeerId>
+where
+    TTransErr: Error,
+    THandlerErr: Error,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         // TODO: More useful debug impl?
@@ -78,10 +85,18 @@ for Pool<TInEvent, TOutEvent, THandler, TTransErr, THandlerErr, TConnInfo, TPeer
 }
 
 impl<TInEvent, TOutEvent, THandler, TTransErr, THandlerErr, TConnInfo, TPeerId> Unpin
-for Pool<TInEvent, TOutEvent, THandler, TTransErr, THandlerErr, TConnInfo, TPeerId> {}
+for Pool<TInEvent, TOutEvent, THandler, TTransErr, THandlerErr, TConnInfo, TPeerId>
+where
+    TTransErr: Error,
+    THandlerErr: Error,
+{}
 
 /// Event that can happen on the `Pool`.
-pub enum PoolEvent<'a, TInEvent, TOutEvent, THandler, TTransErr, THandlerErr, TConnInfo, TPeerId> {
+pub enum PoolEvent<'a, TInEvent, TOutEvent, THandler, TTransErr, THandlerErr, TConnInfo, TPeerId>
+where
+    TTransErr: Error + 'static,
+    THandlerErr: Error + 'static,
+{
     /// A new connection has been established.
     ConnectionEstablished {
         connection: EstablishedConnection<'a, TInEvent, TConnInfo, TPeerId>,
@@ -138,9 +153,9 @@ pub enum PoolEvent<'a, TInEvent, TOutEvent, THandler, TTransErr, THandlerErr, TC
 impl<'a, TInEvent, TOutEvent, THandler, TTransErr, THandlerErr, TConnInfo, TPeerId> fmt::Debug
 for PoolEvent<'a, TInEvent, TOutEvent, THandler, TTransErr, THandlerErr, TConnInfo, TPeerId>
 where
+    TTransErr: Error,
+    THandlerErr: Error,
     TOutEvent: fmt::Debug,
-    TTransErr: fmt::Debug,
-    THandlerErr: fmt::Debug,
     TConnInfo: fmt::Debug,
     TInEvent: fmt::Debug,
 {
@@ -183,6 +198,8 @@ where
 impl<TInEvent, TOutEvent, THandler, TTransErr, THandlerErr, TConnInfo, TPeerId>
     Pool<TInEvent, TOutEvent, THandler, TTransErr, THandlerErr, TConnInfo, TPeerId>
 where
+    TTransErr: Error,
+    THandlerErr: Error,
     TConnInfo: ConnectionInfo<PeerId = TPeerId>,
     TPeerId: Eq + Hash,
 {
@@ -230,8 +247,8 @@ where
             Error = THandlerErr
         > + Send + 'static,
         <THandler::Handler as ConnectionHandler>::OutboundOpenInfo: Send + 'static,
-        TTransErr: error::Error + Send + 'static,
-        THandlerErr: error::Error + Send + 'static,
+        TTransErr: Send + 'static,
+        THandlerErr: Send + 'static,
         TInEvent: Send + 'static,
         TOutEvent: Send + 'static,
         TMuxer: StreamMuxer + Send + Sync + 'static,
@@ -271,8 +288,8 @@ where
             Error = THandlerErr
         > + Send + 'static,
         <THandler::Handler as ConnectionHandler>::OutboundOpenInfo: Send + 'static,
-        TTransErr: error::Error + Send + 'static,
-        THandlerErr: error::Error + Send + 'static,
+        TTransErr: Send + 'static,
+        THandlerErr: Send + 'static,
         TInEvent: Send + 'static,
         TOutEvent: Send + 'static,
         TMuxer: StreamMuxer + Send + Sync + 'static,
@@ -311,8 +328,8 @@ where
             Error = THandlerErr
         > + Send + 'static,
         <THandler::Handler as ConnectionHandler>::OutboundOpenInfo: Send + 'static,
-        TTransErr: error::Error + Send + 'static,
-        THandlerErr: error::Error + Send + 'static,
+        TTransErr: Send + 'static,
+        THandlerErr: Send + 'static,
         TInEvent: Send + 'static,
         TOutEvent: Send + 'static,
         TMuxer: StreamMuxer + Send + Sync + 'static,
@@ -358,8 +375,8 @@ where
             Error = THandlerErr
         > + Send + 'static,
         <THandler::Handler as ConnectionHandler>::OutboundOpenInfo: Send + 'static,
-        TTransErr: error::Error + Send + 'static,
-        THandlerErr: error::Error + Send + 'static,
+        TTransErr: Send + 'static,
+        THandlerErr: Send + 'static,
         TInEvent: Send + 'static,
         TOutEvent: Send + 'static,
         TMuxer: StreamMuxer + Send + Sync + 'static,
@@ -785,7 +802,11 @@ where
 }
 
 /// An iterator over established connections in a [`Pool`].
-pub struct EstablishedConnectionIter<'a, I, TInEvent, TOutEvent, THandler, TTransErr, THandlerErr, TConnInfo, TPeerId> {
+pub struct EstablishedConnectionIter<'a, I, TInEvent, TOutEvent, THandler, TTransErr, THandlerErr, TConnInfo, TPeerId>
+where
+    TTransErr: Error + 'static,
+    THandlerErr: Error + 'static,
+{
     pool: &'a mut Pool<TInEvent, TOutEvent, THandler, TTransErr, THandlerErr, TConnInfo, TPeerId>,
     ids: I
 }
@@ -796,7 +817,9 @@ pub struct EstablishedConnectionIter<'a, I, TInEvent, TOutEvent, THandler, TTran
 impl<'a, I, TInEvent, TOutEvent, THandler, TTransErr, THandlerErr, TConnInfo, TPeerId>
     EstablishedConnectionIter<'a, I, TInEvent, TOutEvent, THandler, TTransErr, THandlerErr, TConnInfo, TPeerId>
 where
-    I: Iterator<Item = ConnectionId>
+    I: Iterator<Item = ConnectionId>,
+    TTransErr: Error,
+    THandlerErr: Error,
 {
     /// Obtains the next connection, if any.
     pub fn next<'b>(&'b mut self) -> Option<EstablishedConnection<'b, TInEvent, TConnInfo, TPeerId>>

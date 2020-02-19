@@ -19,7 +19,7 @@
 // DEALINGS IN THE SOFTWARE.
 
 use crate::PeerId;
-use std::{task::Context, task::Poll};
+use std::{error::Error, task::Context, task::Poll};
 use super::{Connected, SubstreamEndpoint};
 
 /// The interface of a connection handler.
@@ -37,7 +37,7 @@ pub trait ConnectionHandler {
     /// See also [`NetworkEvent::ConnectionEvent`](crate::network::NetworkEvent::ConnectionEvent).
     type OutEvent;
     /// The type of errors that the handler can produce when polled by the `Network`.
-    type Error;
+    type Error: Error + Send + 'static;
     /// The type of the substream containing the data.
     type Substream;
     /// Information about a substream. Can be sent to the handler through a `SubstreamEndpoint`,

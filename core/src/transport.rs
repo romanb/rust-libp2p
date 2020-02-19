@@ -83,7 +83,7 @@ pub trait Transport {
     type Output;
 
     /// An error that occurred during connection setup.
-    type Error: Error;
+    type Error: Error + Send + 'static;
 
     /// A stream of [`Output`](Transport::Output)s for inbound connections.
     ///

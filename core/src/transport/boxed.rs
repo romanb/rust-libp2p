@@ -49,7 +49,7 @@ trait Abstract<O, E> {
 impl<T, O, E> Abstract<O, E> for T
 where
     T: Transport<Output = O, Error = E> + Clone + 'static,
-    E: error::Error,
+    E: error::Error + Send + 'static,
     T::Dial: Send + 'static,
     T::Listener: Send + 'static,
     T::ListenerUpgrade: Send + 'static,
@@ -88,7 +88,7 @@ impl<O, E> Clone for Boxed<O, E> {
 }
 
 impl<O, E> Transport for Boxed<O, E>
-where E: error::Error,
+where E: error::Error + Send + 'static,
 {
     type Output = O;
     type Error = E;

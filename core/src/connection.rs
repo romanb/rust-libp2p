@@ -35,7 +35,7 @@ pub use pool::{EstablishedConnection, EstablishedConnectionIter, PendingConnecti
 
 use crate::muxing::StreamMuxer;
 use crate::{Multiaddr, PeerId};
-use std::{fmt, pin::Pin, task::Context, task::Poll};
+use std::{error::Error, fmt, pin::Pin, task::Context, task::Poll};
 use std::hash::Hash;
 use substream::{Muxing, SubstreamEvent};
 
@@ -246,7 +246,7 @@ where
 
     /// Polls the connection for events produced by the associated handler
     /// as a result of I/O activity on the substream multiplexer.
-    pub fn poll<TTransErr>(mut self: Pin<&mut Self>, cx: &mut Context)
+    pub fn poll<TTransErr: Error>(mut self: Pin<&mut Self>, cx: &mut Context)
         -> Poll<Result<THandler::OutEvent, ConnectionError<THandler::Error, TTransErr>>>
     {
         loop {

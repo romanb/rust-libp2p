@@ -42,7 +42,7 @@ use crate::{
     transport::{Transport, TransportError},
 };
 use futures::prelude::*;
-use std::{error, fmt, hash::Hash};
+use std::{fmt, hash::Hash};
 
 /// Event that can happen on the `Network`.
 pub enum NetworkEvent<'a, TTrans, TInEvent, TOutEvent, THandler, TConnInfo, TPeerId>
@@ -170,9 +170,7 @@ where
     TInEvent: fmt::Debug,
     TOutEvent: fmt::Debug,
     TTrans: Transport,
-    TTrans::Error: fmt::Debug,
     THandler: IntoConnectionHandler<TConnInfo>,
-    <THandler::Handler as ConnectionHandler>::Error: fmt::Debug,
     TConnInfo: fmt::Debug,
     TPeerId: fmt::Debug,
 {
@@ -286,12 +284,10 @@ impl<'a, TTrans, TInEvent, TOutEvent, TMuxer, THandler, TConnInfo, TPeerId>
     IncomingConnectionEvent<'a, TTrans, TInEvent, TOutEvent, THandler, TConnInfo, TPeerId>
 where
     TTrans: Transport<Output = (TConnInfo, TMuxer)>,
-    TTrans::Error: Send + 'static,
     TTrans::ListenerUpgrade: Send + 'static,
     THandler: IntoConnectionHandler<TConnInfo> + Send + 'static,
     THandler::Handler: ConnectionHandler<Substream = Substream<TMuxer>, InEvent = TInEvent, OutEvent = TOutEvent> + Send + 'static,
     <THandler::Handler as ConnectionHandler>::OutboundOpenInfo: Send + 'static, // TODO: shouldn't be necessary
-    <THandler::Handler as ConnectionHandler>::Error: error::Error + Send + 'static,
     TMuxer: StreamMuxer + Send + Sync + 'static,
     TMuxer::OutboundSubstream: Send,
     TMuxer::Substream: Send,

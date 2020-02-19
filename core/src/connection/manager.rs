@@ -30,7 +30,7 @@ use futures::{
 };
 use std::{
     collections::hash_map,
-    error,
+    error::Error,
     fmt,
     pin::Pin,
     task::Context,
@@ -75,7 +75,11 @@ type ConnectResult<C, M, HE, TE> = Result<(Connected<C>, M), ConnectionError<HE,
 pub struct ConnectionId(TaskId);
 
 /// A connection `Manager` orchestrates the I/O of a set of connections.
-pub struct Manager<I, O, H, E, HE, C> {
+pub struct Manager<I, O, H, E, HE, C>
+where
+    E: Error + 'static,
+    HE: Error + 'static,
+{
     /// The tasks of the managed connections.
     ///
     /// Each managed connection is associated with a (background) task
@@ -108,6 +112,8 @@ pub struct Manager<I, O, H, E, HE, C> {
 impl<I, O, H, E, HE, C> fmt::Debug for Manager<I, O, H, E, HE, C>
 where
     C: fmt::Debug,
+    E: Error,
+    HE: Error,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_map()
@@ -139,7 +145,11 @@ enum TaskState<C> {
 
 /// Events produced by the [`Manager`].
 #[derive(Debug)]
-pub enum Event<'a, I, O, H, TE, HE, C> {
+pub enum Event<'a, I, O, H, TE, HE, C>
+where
+    TE: Error + 'static,
+    HE: Error + 'static,
+{
     /// A connection attempt has failed.
     PendingConnectionError {
         /// The connection ID.
@@ -183,7 +193,11 @@ pub enum Event<'a, I, O, H, TE, HE, C> {
     }
 }
 
-impl<I, O, H, TE, HE, C> Manager<I, O, H, TE, HE, C> {
+impl<I, O, H, TE, HE, C> Manager<I, O, H, TE, HE, C>
+where
+    TE: Error,
+    HE: Error,
+{
     /// Creates a new connection manager.
     pub fn new(executor: Option<Box<dyn Executor + Send>>) -> Self {
         let (tx, rx) = mpsc::channel(1);
@@ -205,8 +219,8 @@ impl<I, O, H, TE, HE, C> Manager<I, O, H, TE, HE, C> {
     where
         I: Send + 'static,
         O: Send + 'static,
-        TE: error::Error + Send + 'static,
-        HE: error::Error + Send + 'static,
+        TE: Error + Send + 'static,
+        HE: Error + Send + 'static,
         C: Send + 'static,
         M: StreamMuxer + Send + Sync + 'static,
         M::OutboundSubstream: Send + 'static,
@@ -247,8 +261,8 @@ impl<I, O, H, TE, HE, C> Manager<I, O, H, TE, HE, C> {
             Error = HE
         > + Send + 'static,
         <H::Handler as ConnectionHandler>::OutboundOpenInfo: Send + 'static,
-        TE: error::Error + Send + 'static,
-        HE: error::Error + Send + 'static,
+        TE: Error + Send + 'static,
+        HE: Error + Send + 'static,
         I: Send + 'static,
         O: Send + 'static,
         M: StreamMuxer + Send + Sync + 'static,

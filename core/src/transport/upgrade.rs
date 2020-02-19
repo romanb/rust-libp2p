@@ -106,7 +106,7 @@ where
         D: AsyncRead + AsyncWrite + Unpin,
         U: InboundUpgrade<Negotiated<C>, Output = (I, D), Error = E>,
         U: OutboundUpgrade<Negotiated<C>, Output = (I, D), Error = E> + Clone,
-        E: Error + 'static,
+        E: Error + Send + 'static,
     {
         let version = self.version;
         Builder::new(self.inner.and_then(move |conn, endpoint| {
@@ -135,7 +135,7 @@ where
         I: ConnectionInfo,
         U: InboundUpgrade<Negotiated<C>, Output = D, Error = E>,
         U: OutboundUpgrade<Negotiated<C>, Output = D, Error = E> + Clone,
-        E: Error + 'static,
+        E: Error + Send + 'static,
     {
         Builder::new(Upgrade::new(self.inner, upgrade), self.version)
     }
@@ -256,7 +256,7 @@ where
     C: AsyncRead + AsyncWrite + Unpin,
     U: InboundUpgrade<Negotiated<C>, Output = D, Error = E>,
     U: OutboundUpgrade<Negotiated<C>, Output = D, Error = E> + Clone,
-    E: Error + 'static
+    E: Error + Send + 'static
 {
     type Output = (I, D);
     type Error = TransportUpgradeError<T::Error, E>;

@@ -52,7 +52,6 @@ use fnv::{FnvHashMap};
 use futures::{prelude::*, future};
 use std::{
     collections::hash_map,
-    error,
     fmt,
     hash::Hash,
     num::NonZeroUsize,
@@ -134,7 +133,6 @@ where
     THandler: IntoConnectionHandler<TConnInfo> + Send + 'static,
     THandler::Handler: ConnectionHandler<Substream = Substream<TMuxer>, InEvent = TInEvent, OutEvent = TOutEvent> + Send + 'static,
     <THandler::Handler as ConnectionHandler>::OutboundOpenInfo: Send + 'static, // TODO: shouldn't be necessary
-    <THandler::Handler as ConnectionHandler>::Error: error::Error + Send + 'static,
     TConnInfo: fmt::Debug + ConnectionInfo<PeerId = TPeerId> + Send + 'static,
     TPeerId: Eq + Hash + Clone,
 {
@@ -214,7 +212,6 @@ where
         -> Result<ConnectionId, DialError<TTrans::Error>>
     where
         TTrans: Transport<Output = (TConnInfo, TMuxer)>,
-        TTrans::Error: Send + 'static,
         TTrans::Dial: Send + 'static,
         TMuxer: Send + Sync + 'static,
         TMuxer::OutboundSubstream: Send,
@@ -313,7 +310,6 @@ where
     where
         TTrans: Transport<Output = (TConnInfo, TMuxer)>,
         TTrans::Dial: Send + 'static,
-        TTrans::Error: Send + 'static,
         TMuxer: Send + Sync + 'static,
         TMuxer::OutboundSubstream: Send,
         TInEvent: Send + 'static,
@@ -327,7 +323,6 @@ where
     pub fn poll<'a>(&'a mut self, cx: &mut Context) -> Poll<NetworkEvent<'a, TTrans, TInEvent, TOutEvent, THandler, TConnInfo, TPeerId>>
     where
         TTrans: Transport<Output = (TConnInfo, TMuxer)>,
-        TTrans::Error: Send + 'static,
         TTrans::Dial: Send + 'static,
         TTrans::ListenerUpgrade: Send + 'static,
         TMuxer: Send + Sync + 'static,
@@ -336,7 +331,6 @@ where
         TOutEvent: Send + 'static,
         THandler: IntoConnectionHandler<TConnInfo> + Send + 'static,
         THandler::Handler: ConnectionHandler<Substream = Substream<TMuxer>, InEvent = TInEvent, OutEvent = TOutEvent> + Send + 'static,
-        <THandler::Handler as ConnectionHandler>::Error: error::Error + Send + 'static,
         TConnInfo: Clone,
         TPeerId: AsRef<[u8]> + Send + 'static,
     {
@@ -443,7 +437,6 @@ fn dial_peer_impl<TMuxer, TInEvent, TOutEvent, THandler, TTrans, TConnInfo, TPee
 ) -> Result<ConnectionId, ConnectionLimit>
 where
     THandler: IntoConnectionHandler<TConnInfo> + Send + 'static,
-    <THandler::Handler as ConnectionHandler>::Error: error::Error + Send + 'static,
     <THandler::Handler as ConnectionHandler>::OutboundOpenInfo: Send + 'static,
     THandler::Handler: ConnectionHandler<
         Substream = Substream<TMuxer>,
@@ -452,7 +445,6 @@ where
     > + Send + 'static,
     TTrans: Transport<Output = (TConnInfo, TMuxer)>,
     TTrans::Dial: Send + 'static,
-    TTrans::Error: error::Error + Send + 'static,
     TMuxer: StreamMuxer + Send + Sync + 'static,
     TMuxer::OutboundSubstream: Send + 'static,
     TInEvent: Send + 'static,
@@ -578,40 +570,14 @@ pub struct NetworkInfo {
 }
 
 /// The possible errors of [`Network::dial`].
-#[derive(Debug)]
-pub enum DialError<T> {
+#[derive(thiserror::Error, Debug)]
+pub enum DialError<T: std::error::Error + 'static> {
     /// The configured limit of pending outgoing connections has been reached.
+    #[error("Dial error (pending connection limit): {0:?}.")]
     MaxPending(ConnectionLimit),
     /// A transport error occurred when creating the connection.
-    Transport(TransportError<T>),
-}
-
-impl<T> fmt::Display for DialError<T>
-where T: fmt::Display,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            DialError::MaxPending(limit) => write!(f, "Dial error (pending limit): {}", limit.current),
-            DialError::Transport(err) => write!(f, "Dial error (transport): {}", err),
-        }
-    }
-}
-
-impl<T> std::error::Error for DialError<T>
-where T: std::error::Error + 'static,
-{
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            DialError::MaxPending(_) => None,
-            DialError::Transport(e) => Some(e),
-        }
-    }
-}
-
-impl<T> From<TransportError<T>> for DialError<T> {
-    fn from(e: TransportError<T>) -> DialError<T> {
-        DialError::Transport(e)
-    }
+    #[error("Dial error (transport error): {0}.")]
+    Transport(#[from] TransportError<T>),
 }
 
 /// The (optional) configuration for a [`Network`].

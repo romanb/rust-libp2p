@@ -39,7 +39,6 @@ use crate::{
 };
 use std::{
     collections::hash_map,
-    error,
     fmt,
     hash::Hash,
     num::NonZeroUsize,
@@ -178,7 +177,6 @@ impl<'a, TTrans, TMuxer, TInEvent, TOutEvent, THandler, TConnInfo, TPeerId>
     Peer<'a, TTrans, TInEvent, TOutEvent, THandler, TConnInfo, TPeerId>
 where
     TTrans: Transport<Output = (TConnInfo, TMuxer)> + Clone,
-    TTrans::Error: Send + 'static,
     TTrans::Dial: Send + 'static,
     TMuxer: StreamMuxer + Send + Sync + 'static,
     TMuxer::OutboundSubstream: Send,
@@ -188,7 +186,6 @@ where
     THandler: IntoConnectionHandler<TConnInfo> + Send + 'static,
     THandler::Handler: ConnectionHandler<Substream = Substream<TMuxer>, InEvent = TInEvent, OutEvent = TOutEvent> + Send + 'static,
     <THandler::Handler as ConnectionHandler>::OutboundOpenInfo: Send + 'static, // TODO: shouldn't be necessary
-    <THandler::Handler as ConnectionHandler>::Error: error::Error + Send + 'static,
     TConnInfo: fmt::Debug + ConnectionInfo<PeerId = TPeerId> + Send + 'static,
     TPeerId: Eq + Hash + Clone + Send + 'static,
 {
@@ -253,11 +250,9 @@ where
         I: IntoIterator<Item = Multiaddr>,
         THandler: Send + 'static,
         THandler::Handler: Send,
-        <THandler::Handler as ConnectionHandler>::Error: error::Error + Send,
         <THandler::Handler as ConnectionHandler>::OutboundOpenInfo: Send,
         THandler::Handler: ConnectionHandler<Substream = Substream<TMuxer>, InEvent = TInEvent, OutEvent = TOutEvent> + Send,
         TTrans: Transport<Output = (TConnInfo, TMuxer)> + Clone,
-        TTrans::Error: Send + 'static,
         TTrans::Dial: Send + 'static,
         TMuxer: StreamMuxer + Send + Sync + 'static,
         TMuxer::OutboundSubstream: Send,
@@ -448,7 +443,6 @@ impl<'a, TTrans, TInEvent, TOutEvent, TMuxer, THandler, TConnInfo, TPeerId>
     DisconnectedPeer<'a, TTrans, TInEvent, TOutEvent, THandler, TConnInfo, TPeerId>
 where
     TTrans: Transport<Output = (TConnInfo, TMuxer)> + Clone,
-    TTrans::Error: Send + 'static,
     TTrans::Dial: Send + 'static,
     TMuxer: StreamMuxer + Send + Sync + 'static,
     TMuxer::OutboundSubstream: Send,
@@ -456,7 +450,6 @@ where
     THandler: IntoConnectionHandler<TConnInfo> + Send + 'static,
     THandler::Handler: ConnectionHandler<Substream = Substream<TMuxer>, InEvent = TInEvent, OutEvent = TOutEvent> + Send,
     <THandler::Handler as ConnectionHandler>::OutboundOpenInfo: Send,
-    <THandler::Handler as ConnectionHandler>::Error: error::Error + Send,
     TInEvent: Send + 'static,
     TOutEvent: Send + 'static,
 {

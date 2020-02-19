@@ -42,7 +42,7 @@ where
     T: Transport,
     C: FnOnce(T::Output, ConnectedPoint) -> F + Clone,
     F: TryFuture<Ok = O>,
-    F::Error: error::Error,
+    F::Error: error::Error + Send + 'static,
 {
     type Output = O;
     type Error = EitherError<T::Error, F::Error>;

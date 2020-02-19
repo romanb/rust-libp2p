@@ -19,55 +19,31 @@
 // DEALINGS IN THE SOFTWARE.
 
 use crate::transport::TransportError;
-use std::{io, fmt};
+use std::{error::Error, io};
 
 /// Errors that can occur in the context of a pending or established `Connection`.
-#[derive(Debug)]
-pub enum ConnectionError<THandlerErr, TTransErr> {
+#[derive(thiserror::Error, Debug)]
+pub enum ConnectionError<THandlerErr, TTransErr>
+where
+    THandlerErr: Error + 'static,
+    TTransErr: Error + 'static,
+{
     /// An error occurred while negotiating the transport protocol(s).
-    Transport(TransportError<TTransErr>),
+    #[error("Transport error: {0}")]
+    Transport(#[from] TransportError<TTransErr>),
 
     /// The peer identity obtained on the connection did not
     /// match the one that was expected or is otherwise invalid.
+    #[error("Invalid peer ID.")]
     InvalidPeerId,
 
     /// An I/O error occurred on the connection.
     // TODO: Eventually this should also be a custom error?
-    IO(io::Error),
+    #[error("I/O error: {0}")]
+    IO(#[from] io::Error),
 
     /// The connection handler produced an error.
-    Handler(THandlerErr),
-}
-
-impl<THandlerErr, TTransErr> fmt::Display
-for ConnectionError<THandlerErr, TTransErr>
-where
-    THandlerErr: fmt::Display,
-    TTransErr: fmt::Display,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ConnectionError::IO(err) => write!(f, "I/O error: {}", err),
-            ConnectionError::Handler(err) => write!(f, "Handler error: {}", err),
-            ConnectionError::Transport(err) => write!(f, "Transport error: {}", err),
-            ConnectionError::InvalidPeerId => write!(f, "Invalid peer ID.")
-        }
-    }
-}
-
-impl<THandlerErr, TTransErr> std::error::Error
-for ConnectionError<THandlerErr, TTransErr>
-where
-    THandlerErr: std::error::Error + 'static,
-    TTransErr: std::error::Error + 'static
-{
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            ConnectionError::IO(err) => Some(err),
-            ConnectionError::Handler(err) => Some(err),
-            ConnectionError::Transport(err) => Some(err),
-            ConnectionError::InvalidPeerId { .. } => None,
-        }
-    }
+    #[error("Handler error: {0}")]
+    Handler(#[source] THandlerErr),
 }
 

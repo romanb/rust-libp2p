@@ -41,7 +41,7 @@ impl<T, F, TErr> Transport for MapErr<T, F>
 where
     T: Transport,
     F: FnOnce(T::Error) -> TErr + Clone,
-    TErr: error::Error,
+    TErr: error::Error + Send + 'static,
 {
     type Output = T::Output;
     type Error = TErr;
