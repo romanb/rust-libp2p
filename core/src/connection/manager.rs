@@ -263,7 +263,6 @@ impl<I, O, H, TE, HE, C> Manager<I, O, H, TE, HE, C> {
         HE: error::Error + Send + 'static,
         C: Send + 'static,
         M: StreamMuxer + Send + Sync + 'static,
-        M::OutboundSubstream: Send + 'static,
         F: Future<Output = ConnectResult<C, M, TE>> + Send + 'static,
         H: IntoConnectionHandler<C> + Send + 'static,
         H::Handler: ConnectionHandler<
@@ -272,7 +271,6 @@ impl<I, O, H, TE, HE, C> Manager<I, O, H, TE, HE, C> {
             OutEvent = O,
             Error = HE
         > + Send + 'static,
-        <H::Handler as ConnectionHandler>::OutboundOpenInfo: Send + 'static,
     {
         let task_id = self.next_task_id;
         self.next_task_id.0 += 1;
@@ -300,13 +298,11 @@ impl<I, O, H, TE, HE, C> Manager<I, O, H, TE, HE, C> {
             OutEvent = O,
             Error = HE
         > + Send + 'static,
-        <H::Handler as ConnectionHandler>::OutboundOpenInfo: Send + 'static,
         TE: error::Error + Send + 'static,
         HE: error::Error + Send + 'static,
         I: Send + 'static,
         O: Send + 'static,
         M: StreamMuxer + Send + Sync + 'static,
-        M::OutboundSubstream: Send + 'static,
         C: Send + 'static
     {
         let task_id = self.next_task_id;

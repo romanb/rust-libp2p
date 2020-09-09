@@ -40,6 +40,7 @@ use crate::{
         apply_inbound,
         apply_outbound,
         UpgradeError,
+        UpgradeInfo,
         OutboundUpgradeApply,
         InboundUpgradeApply
     }
@@ -77,7 +78,6 @@ pub struct Builder<T> {
 impl<T> Builder<T>
 where
     T: Transport,
-    T::Error: 'static,
 {
     /// Creates a `Builder` over the given (base) `Transport`.
     pub fn new(inner: T, version: upgrade::Version) -> Builder<T> {
@@ -102,11 +102,13 @@ where
     > where
         T: Transport<Output = C>,
         I: ConnectionInfo,
-        C: AsyncRead + AsyncWrite + Unpin,
+        C: AsyncRead + AsyncWrite + Unpin + Send + 'static,
         D: AsyncRead + AsyncWrite + Unpin,
+        U: Send + 'static,
+        <<U as UpgradeInfo>::InfoIter as IntoIterator>::IntoIter: Send,
         U: InboundUpgrade<Negotiated<C>, Output = (I, D), Error = E>,
         U: OutboundUpgrade<Negotiated<C>, Output = (I, D), Error = E> + Clone,
-        E: Error + 'static,
+        E: Error + Send + 'static,
     {
         let version = self.version;
         Builder::new(self.inner.and_then(move |conn, endpoint| {
@@ -130,12 +132,14 @@ where
     pub fn apply<C, D, U, I, E>(self, upgrade: U) -> Builder<Upgrade<T, U>>
     where
         T: Transport<Output = (I, C)>,
-        C: AsyncRead + AsyncWrite + Unpin,
+        C: AsyncRead + AsyncWrite + Unpin + Send + 'static,
         D: AsyncRead + AsyncWrite + Unpin,
-        I: ConnectionInfo,
+        I: ConnectionInfo + Send + 'static,
+        U: Send + 'static,
+        <<U as UpgradeInfo>::InfoIter as IntoIterator>::IntoIter: Send,
         U: InboundUpgrade<Negotiated<C>, Output = D, Error = E>,
         U: OutboundUpgrade<Negotiated<C>, Output = D, Error = E> + Clone,
-        E: Error + 'static,
+        E: Error + Send + 'static,
     {
         Builder::new(Upgrade::new(self.inner, upgrade), self.version)
     }
@@ -283,11 +287,13 @@ impl<T, U> Upgrade<T, U> {
 impl<T, C, D, U, I, E> Transport for Upgrade<T, U>
 where
     T: Transport<Output = (I, C)>,
-    T::Error: 'static,
-    C: AsyncRead + AsyncWrite + Unpin,
+    C: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+    U: Send + 'static,
+    <<U as UpgradeInfo>::InfoIter as IntoIterator>::IntoIter: Send,
     U: InboundUpgrade<Negotiated<C>, Output = D, Error = E>,
     U: OutboundUpgrade<Negotiated<C>, Output = D, Error = E> + Clone,
-    E: Error + 'static
+    E: Error + Send + 'static,
+    I: Send + 'static,
 {
     type Output = (I, D);
     type Error = TransportUpgradeError<T::Error, E>;

@@ -249,7 +249,6 @@ pub use libp2p_request_response as request_response;
 mod transport_ext;
 
 pub mod bandwidth;
-pub mod simple;
 
 pub use self::core::{
     identity,
@@ -260,7 +259,6 @@ pub use self::core::{
 };
 pub use libp2p_core_derive::NetworkBehaviour;
 pub use self::multiaddr::{Multiaddr, multiaddr as build_multiaddr};
-pub use self::simple::SimpleProtocol;
 pub use self::swarm::Swarm;
 pub use self::transport_ext::TransportExt;
 

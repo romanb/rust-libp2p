@@ -150,7 +150,7 @@ impl UpgradeInfo for MplexConfig {
 
 impl<C> InboundUpgrade<C> for MplexConfig
 where
-    C: AsyncRead + AsyncWrite + Unpin,
+    C: AsyncRead + AsyncWrite + Unpin + Send,
 {
     type Output = Multiplex<C>;
     type Error = IoError;
@@ -163,7 +163,7 @@ where
 
 impl<C> OutboundUpgrade<C> for MplexConfig
 where
-    C: AsyncRead + AsyncWrite + Unpin,
+    C: AsyncRead + AsyncWrite + Unpin + Send,
 {
     type Output = Multiplex<C>;
     type Error = IoError;

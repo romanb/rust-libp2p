@@ -121,7 +121,7 @@ impl UpgradeInfo for IdentifyProtocolConfig {
 
 impl<C> InboundUpgrade<C> for IdentifyProtocolConfig
 where
-    C: AsyncRead + AsyncWrite + Unpin,
+    C: AsyncRead + AsyncWrite + Unpin + Send,
 {
     type Output = ReplySubstream<C>;
     type Error = io::Error;

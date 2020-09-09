@@ -180,13 +180,8 @@ type Output<C> = (RemoteIdentity<C>, NoiseOutput<Negotiated<TcpTransStream>>);
 fn run<T, U, I, C>(server_transport: T, client_transport: U, messages: I)
 where
     T: Transport<Output = Output<C>>,
-    T::Dial: Send + 'static,
-    T::Listener: Send + Unpin + 'static,
-    T::ListenerUpgrade: Send + 'static,
+    T::Listener: Unpin,
     U: Transport<Output = Output<C>>,
-    U::Dial: Send + 'static,
-    U::Listener: Send + 'static,
-    U::ListenerUpgrade: Send + 'static,
     I: IntoIterator<Item = Message> + Clone
 {
     futures::executor::block_on(async {

@@ -100,10 +100,6 @@ type TlsOrPlain<T> = EitherOutput<EitherOutput<client::TlsStream<T>, server::Tls
 impl<T> Transport for WsConfig<T>
 where
     T: Transport + Send + Clone + 'static,
-    T::Error: Send + 'static,
-    T::Dial: Send + 'static,
-    T::Listener: Send + 'static,
-    T::ListenerUpgrade: Send + 'static,
     T::Output: AsyncRead + AsyncWrite + Unpin + Send + 'static
 {
     type Output = Connection<T::Output>;

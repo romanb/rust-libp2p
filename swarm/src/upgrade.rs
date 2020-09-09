@@ -74,8 +74,8 @@ where
     T: upgrade::OutboundUpgrade<NegotiatedSubstream, Info = TInfo> + UpgradeInfoSend<Info = TInfo>,
     TInfo: upgrade::ProtocolName + Clone + Send + 'static,
     T::Output: Send + 'static,
-    T::Error: Send + 'static,
     T::Future: Send + 'static,
+    T::Error: Send + 'static,
 {
     type Output = T::Output;
     type Error = T::Error;
@@ -108,8 +108,8 @@ where
     T: upgrade::InboundUpgrade<NegotiatedSubstream, Info = TInfo> + UpgradeInfoSend<Info = TInfo>,
     TInfo: upgrade::ProtocolName + Clone + Send + 'static,
     T::Output: Send + 'static,
-    T::Error: Send + 'static,
     T::Future: Send + 'static,
+    T::Error: Send + 'static,
 {
     type Output = T::Output;
     type Error = T::Error;

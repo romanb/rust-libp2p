@@ -39,7 +39,7 @@ impl<T, F> Map<T, F> {
 impl<T, F, D> Transport for Map<T, F>
 where
     T: Transport,
-    F: FnOnce(T::Output, ConnectedPoint) -> D + Clone
+    F: FnOnce(T::Output, ConnectedPoint) -> D + Send + Clone + 'static
 {
     type Output = D;
     type Error = T::Error;

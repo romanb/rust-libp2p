@@ -28,9 +28,6 @@ use std::{error, fmt, pin::Pin, sync::Arc};
 pub fn boxed<T>(transport: T) -> Boxed<T::Output, T::Error>
 where
     T: Transport + Clone + Send + Sync + 'static,
-    T::Dial: Send + 'static,
-    T::Listener: Send + 'static,
-    T::ListenerUpgrade: Send + 'static,
 {
     Boxed {
         inner: Arc::new(transport) as Arc<_>,
@@ -49,10 +46,7 @@ trait Abstract<O, E> {
 impl<T, O, E> Abstract<O, E> for T
 where
     T: Transport<Output = O, Error = E> + Clone + 'static,
-    E: error::Error,
-    T::Dial: Send + 'static,
-    T::Listener: Send + 'static,
-    T::ListenerUpgrade: Send + 'static,
+    E: error::Error + Send + 'static,
 {
     fn listen_on(&self, addr: Multiaddr) -> Result<Listener<O, E>, TransportError<E>> {
         let listener = Transport::listen_on(self.clone(), addr)?;
@@ -88,7 +82,9 @@ impl<O, E> Clone for Boxed<O, E> {
 }
 
 impl<O, E> Transport for Boxed<O, E>
-where E: error::Error,
+where
+    E: error::Error + Send + 'static,
+    O: 'static,
 {
     type Output = O;
     type Error = E;

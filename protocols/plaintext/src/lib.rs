@@ -85,7 +85,7 @@ impl UpgradeInfo for PlainText1Config {
     }
 }
 
-impl<C> InboundUpgrade<C> for PlainText1Config {
+impl<C: Send> InboundUpgrade<C> for PlainText1Config {
     type Output = C;
     type Error = Void;
     type Future = Ready<Result<C, Self::Error>>;
@@ -95,7 +95,7 @@ impl<C> InboundUpgrade<C> for PlainText1Config {
     }
 }
 
-impl<C> OutboundUpgrade<C> for PlainText1Config {
+impl<C: Send> OutboundUpgrade<C> for PlainText1Config {
     type Output = C;
     type Error = Void;
     type Future = Ready<Result<C, Self::Error>>;

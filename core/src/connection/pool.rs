@@ -249,13 +249,11 @@ where
             OutEvent = TOutEvent,
             Error = THandlerErr
         > + Send + 'static,
-        <THandler::Handler as ConnectionHandler>::OutboundOpenInfo: Send + 'static,
         TTransErr: error::Error + Send + 'static,
         THandlerErr: error::Error + Send + 'static,
         TInEvent: Send + 'static,
         TOutEvent: Send + 'static,
         TMuxer: StreamMuxer + Send + Sync + 'static,
-        TMuxer::OutboundSubstream: Send + 'static,
         TPeerId: Clone + Send + 'static,
     {
         let endpoint = info.to_connected_point();
@@ -286,13 +284,11 @@ where
             OutEvent = TOutEvent,
             Error = THandlerErr
         > + Send + 'static,
-        <THandler::Handler as ConnectionHandler>::OutboundOpenInfo: Send + 'static,
         TTransErr: error::Error + Send + 'static,
         THandlerErr: error::Error + Send + 'static,
         TInEvent: Send + 'static,
         TOutEvent: Send + 'static,
         TMuxer: StreamMuxer + Send + Sync + 'static,
-        TMuxer::OutboundSubstream: Send + 'static,
         TPeerId: Clone + Send + 'static,
     {
         self.limits.check_outgoing(|| self.iter_pending_outgoing().count())?;
@@ -326,13 +322,11 @@ where
             OutEvent = TOutEvent,
             Error = THandlerErr
         > + Send + 'static,
-        <THandler::Handler as ConnectionHandler>::OutboundOpenInfo: Send + 'static,
         TTransErr: error::Error + Send + 'static,
         THandlerErr: error::Error + Send + 'static,
         TInEvent: Send + 'static,
         TOutEvent: Send + 'static,
         TMuxer: StreamMuxer + Send + Sync + 'static,
-        TMuxer::OutboundSubstream: Send + 'static,
         TPeerId: Clone + Send + 'static,
     {
         // Validate the received peer ID as the last step of the pending connection
@@ -379,13 +373,11 @@ where
             OutEvent = TOutEvent,
             Error = THandlerErr
         > + Send + 'static,
-        <THandler::Handler as ConnectionHandler>::OutboundOpenInfo: Send + 'static,
         TTransErr: error::Error + Send + 'static,
         THandlerErr: error::Error + Send + 'static,
         TInEvent: Send + 'static,
         TOutEvent: Send + 'static,
         TMuxer: StreamMuxer + Send + Sync + 'static,
-        TMuxer::OutboundSubstream: Send + 'static,
         TConnInfo: Clone + Send + 'static,
         TPeerId: Clone,
         TConnInfo: ConnectionInfo<PeerId = TPeerId>,

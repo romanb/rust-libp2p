@@ -258,7 +258,7 @@ pub enum SwarmEvent<TBvEv, THandleErr> {
 pub struct ExpandedSwarm<TBehaviour, TInEvent, TOutEvent, THandler, TConnInfo = PeerId>
 where
     THandler: IntoProtocolsHandler,
-    TConnInfo: ConnectionInfo<PeerId = PeerId>,
+    TConnInfo: ConnectionInfo<PeerId = PeerId> + 'static,
 {
     network: Network<
         BoxTransport<(TConnInfo, StreamMuxerBox), io::Error>,
@@ -338,14 +338,9 @@ where TBehaviour: NetworkBehaviour<ProtocolsHandler = THandler>,
     pub fn new<TTransport, TMuxer>(transport: TTransport, behaviour: TBehaviour, local_peer_id: PeerId) -> Self
     where
         TMuxer: StreamMuxer + Send + Sync + 'static,
-        TMuxer::OutboundSubstream: Send + 'static,
-        <TMuxer as StreamMuxer>::OutboundSubstream: Send + 'static,
         <TMuxer as StreamMuxer>::Substream: Send + 'static,
         TTransport: Transport<Output = (TConnInfo, TMuxer)> + Clone + Send + Sync + 'static,
-        TTransport::Error: Send + Sync + 'static,
-        TTransport::Listener: Send + 'static,
-        TTransport::ListenerUpgrade: Send + 'static,
-        TTransport::Dial: Send + 'static,
+        TTransport::Error: Sync,
     {
         SwarmBuilder::new(transport, behaviour, local_peer_id)
             .build()
@@ -987,14 +982,9 @@ where TBehaviour: NetworkBehaviour,
     pub fn new<TTrans, TMuxer>(transport: TTrans, behaviour: TBehaviour, local_peer_id: PeerId) -> Self
     where
         TMuxer: StreamMuxer + Send + Sync + 'static,
-        TMuxer::OutboundSubstream: Send + 'static,
-        <TMuxer as StreamMuxer>::OutboundSubstream: Send + 'static,
         <TMuxer as StreamMuxer>::Substream: Send + 'static,
         TTrans: Transport<Output = (TConnInfo, TMuxer)> + Clone + Send + Sync + 'static,
-        TTrans::Error: Send + Sync + 'static,
-        TTrans::Listener: Send + 'static,
-        TTrans::ListenerUpgrade: Send + 'static,
-        TTrans::Dial: Send + 'static,
+        TTrans::Error: Sync,
     {
         let transport = transport
             .map(|(conn_info, muxer), _| (conn_info, StreamMuxerBox::new(muxer)))

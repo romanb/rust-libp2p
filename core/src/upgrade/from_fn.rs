@@ -68,7 +68,7 @@ pub struct FromFnUpgrade<P, F> {
 
 impl<P, F> UpgradeInfo for FromFnUpgrade<P, F>
 where
-    P: ProtocolName + Clone,
+    P: ProtocolName + Clone + Send,
 {
     type Info = P;
     type InfoIter = iter::Once<P>;
@@ -80,9 +80,9 @@ where
 
 impl<C, P, F, Fut, Err, Out> InboundUpgrade<C> for FromFnUpgrade<P, F>
 where
-    P: ProtocolName + Clone,
+    P: ProtocolName + Clone + Send,
     F: FnOnce(C, Endpoint) -> Fut,
-    Fut: Future<Output = Result<Out, Err>>,
+    Fut: Future<Output = Result<Out, Err>> + Send,
 {
     type Output = Out;
     type Error = Err;
@@ -95,9 +95,9 @@ where
 
 impl<C, P, F, Fut, Err, Out> OutboundUpgrade<C> for FromFnUpgrade<P, F>
 where
-    P: ProtocolName + Clone,
+    P: ProtocolName + Clone + Send,
     F: FnOnce(C, Endpoint) -> Fut,
-    Fut: Future<Output = Result<Out, Err>>,
+    Fut: Future<Output = Result<Out, Err>> + Send,
 {
     type Output = Out;
     type Error = Err;

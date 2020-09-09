@@ -47,7 +47,7 @@ where
 impl<C, U, F, T> InboundUpgrade<C> for MapInboundUpgrade<U, F>
 where
     U: InboundUpgrade<C>,
-    F: FnOnce(U::Output) -> T
+    F: FnOnce(U::Output) -> T + Send,
 {
     type Output = T;
     type Error = U::Error;
@@ -112,7 +112,7 @@ where
 impl<C, U, F, T> OutboundUpgrade<C> for MapOutboundUpgrade<U, F>
 where
     U: OutboundUpgrade<C>,
-    F: FnOnce(U::Output) -> T
+    F: FnOnce(U::Output) -> T + Send,
 {
     type Output = T;
     type Error = U::Error;
@@ -151,7 +151,7 @@ where
 impl<C, U, F, T> InboundUpgrade<C> for MapInboundUpgradeErr<U, F>
 where
     U: InboundUpgrade<C>,
-    F: FnOnce(U::Error) -> T
+    F: FnOnce(U::Error) -> T + Send,
 {
     type Output = U::Output;
     type Error = T;
@@ -203,7 +203,7 @@ where
 impl<C, U, F, T> OutboundUpgrade<C> for MapOutboundUpgradeErr<U, F>
 where
     U: OutboundUpgrade<C>,
-    F: FnOnce(U::Error) -> T
+    F: FnOnce(U::Error) -> T + Send,
 {
     type Output = U::Output;
     type Error = T;

@@ -170,10 +170,6 @@ pub struct Config {
     mode: Option<yamux::Mode>
 }
 
-/// The yamux configuration for upgrading I/O resources which are ![`Send`].
-#[derive(Clone)]
-pub struct LocalConfig(Config);
-
 impl Config {
     pub fn new(cfg: yamux::Config) -> Self {
         Config { config: cfg, mode: None }
@@ -185,11 +181,6 @@ impl Config {
     /// irrespective of whether an inbound or outbound upgrade happens.
     pub fn override_mode(&mut self, mode: yamux::Mode) {
         self.mode = Some(mode)
-    }
-
-    /// Turn this into a [`LocalConfig`] for use with upgrades of ![`Send`] resources.
-    pub fn local(self) -> LocalConfig {
-        LocalConfig(self)
     }
 }
 
@@ -222,15 +213,6 @@ impl UpgradeInfo for Config {
     }
 }
 
-impl UpgradeInfo for LocalConfig {
-    type Info = &'static [u8];
-    type InfoIter = iter::Once<Self::Info>;
-
-    fn protocol_info(&self) -> Self::InfoIter {
-        iter::once(b"/yamux/1.0.0")
-    }
-}
-
 impl<C> InboundUpgrade<C> for Config
 where
     C: AsyncRead + AsyncWrite + Send + Unpin + 'static
@@ -244,20 +226,6 @@ where
     }
 }
 
-impl<C> InboundUpgrade<C> for LocalConfig
-where
-    C: AsyncRead + AsyncWrite + Unpin + 'static
-{
-    type Output = Yamux<LocalIncoming<C>>;
-    type Error = io::Error;
-    type Future = future::Ready<Result<Self::Output, Self::Error>>;
-
-    fn upgrade_inbound(self, io: C, _: Self::Info) -> Self::Future {
-        let cfg = self.0;
-        future::ready(Ok(Yamux::local(io, cfg.config, cfg.mode.unwrap_or(yamux::Mode::Server))))
-    }
-}
-
 impl<C> OutboundUpgrade<C> for Config
 where
     C: AsyncRead + AsyncWrite + Send + Unpin + 'static
@@ -268,20 +236,6 @@ where
 
     fn upgrade_outbound(self, io: C, _: Self::Info) -> Self::Future {
         future::ready(Ok(Yamux::new(io, self.config, self.mode.unwrap_or(yamux::Mode::Client))))
-    }
-}
-
-impl<C> OutboundUpgrade<C> for LocalConfig
-where
-    C: AsyncRead + AsyncWrite + Unpin + 'static
-{
-    type Output = Yamux<LocalIncoming<C>>;
-    type Error = io::Error;
-    type Future = future::Ready<Result<Self::Output, Self::Error>>;
-
-    fn upgrade_outbound(self, io: C, _: Self::Info) -> Self::Future {
-        let cfg = self.0;
-        future::ready(Ok(Yamux::local(io, cfg.config, cfg.mode.unwrap_or(yamux::Mode::Client))))
     }
 }
 

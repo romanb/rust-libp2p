@@ -83,7 +83,7 @@ pub trait Transport {
     type Output;
 
     /// An error that occurred during connection setup.
-    type Error: Error;
+    type Error: Error + Send + 'static;
 
     /// A stream of [`Output`](Transport::Output)s for inbound connections.
     ///
@@ -94,7 +94,7 @@ pub trait Transport {
     ///
     /// If this stream produces an error, it is considered fatal and the listener is killed. It
     /// is possible to report non-fatal errors by producing a [`ListenerEvent::Error`].
-    type Listener: Stream<Item = Result<ListenerEvent<Self::ListenerUpgrade, Self::Error>, Self::Error>>;
+    type Listener: Stream<Item = Result<ListenerEvent<Self::ListenerUpgrade, Self::Error>, Self::Error>> + Send + 'static;
 
     /// A pending [`Output`](Transport::Output) for an inbound connection,
     /// obtained from the [`Listener`](Transport::Listener) stream.
@@ -105,11 +105,11 @@ pub trait Transport {
     /// connection, hence further connection setup proceeds asynchronously.
     /// Once a `ListenerUpgrade` future resolves it yields the [`Output`](Transport::Output)
     /// of the connection setup process.
-    type ListenerUpgrade: Future<Output = Result<Self::Output, Self::Error>>;
+    type ListenerUpgrade: Future<Output = Result<Self::Output, Self::Error>> + Send + 'static;
 
     /// A pending [`Output`](Transport::Output) for an outbound connection,
     /// obtained from [dialing](Transport::dial).
-    type Dial: Future<Output = Result<Self::Output, Self::Error>>;
+    type Dial: Future<Output = Result<Self::Output, Self::Error>> + Send + 'static;
 
     /// Listens on the given [`Multiaddr`], producing a stream of pending, inbound connections
     /// and addresses this transport is listening on (cf. [`ListenerEvent`]).
@@ -131,9 +131,6 @@ pub trait Transport {
     /// Turns the transport into an abstract boxed (i.e. heap-allocated) transport.
     fn boxed(self) -> boxed::Boxed<Self::Output, Self::Error>
     where Self: Sized + Clone + Send + Sync + 'static,
-          Self::Dial: Send + 'static,
-          Self::Listener: Send + 'static,
-          Self::ListenerUpgrade: Send + 'static,
     {
         boxed::boxed(self)
     }
@@ -165,7 +162,6 @@ pub trait Transport {
     where
         Self: Sized,
         U: Transport,
-        <U as Transport>::Error: 'static
     {
         OrTransport::new(self, other)
     }

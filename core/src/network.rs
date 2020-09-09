@@ -55,7 +55,6 @@ use smallvec::SmallVec;
 use std::{
     collections::hash_map,
     convert::TryFrom as _,
-    error,
     fmt,
     hash::Hash,
     num::NonZeroUsize,
@@ -137,14 +136,14 @@ where
 impl<TTrans, TInEvent, TOutEvent, TMuxer, THandler, TConnInfo, TPeerId>
     Network<TTrans, TInEvent, TOutEvent, THandler, TConnInfo, TPeerId>
 where
-    TTrans: Transport + Clone,
-    TMuxer: StreamMuxer,
+    TInEvent: Send + 'static,
+    TOutEvent: Send + 'static,
+    TTrans: Transport<Output = (TConnInfo, TMuxer)> + Clone,
+    TMuxer: StreamMuxer + Send + Sync + 'static,
     THandler: IntoConnectionHandler<TConnInfo> + Send + 'static,
     THandler::Handler: ConnectionHandler<Substream = Substream<TMuxer>, InEvent = TInEvent, OutEvent = TOutEvent> + Send + 'static,
-    <THandler::Handler as ConnectionHandler>::OutboundOpenInfo: Send + 'static, // TODO: shouldn't be necessary
-    <THandler::Handler as ConnectionHandler>::Error: error::Error + Send + 'static,
-    TConnInfo: fmt::Debug + ConnectionInfo<PeerId = TPeerId> + Send + 'static,
-    TPeerId: Eq + Hash + Clone,
+    TConnInfo: fmt::Debug + ConnectionInfo<PeerId = TPeerId> + Send + Clone + 'static,
+    TPeerId: Eq + Hash + Clone + Send + 'static,
 {
     /// Creates a new node events stream.
     pub fn new(
@@ -228,16 +227,6 @@ where
     /// connection ID is returned.
     pub fn dial(&mut self, address: &Multiaddr, handler: THandler)
         -> Result<ConnectionId, ConnectionLimit>
-    where
-        TTrans: Transport<Output = (TConnInfo, TMuxer)>,
-        TTrans::Error: Send + 'static,
-        TTrans::Dial: Send + 'static,
-        TMuxer: Send + Sync + 'static,
-        TMuxer::OutboundSubstream: Send,
-        TInEvent: Send + 'static,
-        TOutEvent: Send + 'static,
-        TConnInfo: Send + 'static,
-        TPeerId: Send + 'static,
     {
         let info = OutgoingInfo { address, peer_id: None };
         match self.transport().clone().dial(address.clone()) {
@@ -343,17 +332,7 @@ where
         &mut self,
         connection: IncomingConnection<TTrans::ListenerUpgrade>,
         handler: THandler,
-    ) -> Result<ConnectionId, ConnectionLimit>
-    where
-        TInEvent: Send + 'static,
-        TOutEvent: Send + 'static,
-        TPeerId: Send + 'static,
-        TMuxer: StreamMuxer + Send + Sync + 'static,
-        TMuxer::OutboundSubstream: Send,
-        TTrans: Transport<Output = (TConnInfo, TMuxer)>,
-        TTrans::Error: Send + 'static,
-        TTrans::ListenerUpgrade: Send + 'static,
-    {
+    ) -> Result<ConnectionId, ConnectionLimit> {
         let upgrade = connection.upgrade.map_err(|err|
             PendingConnectionError::Transport(TransportError::Other(err)));
         let info = IncomingInfo {
@@ -364,21 +343,8 @@ where
     }
 
     /// Provides an API similar to `Stream`, except that it cannot error.
-    pub fn poll<'a>(&'a mut self, cx: &mut Context<'_>) -> Poll<NetworkEvent<'a, TTrans, TInEvent, TOutEvent, THandler, TConnInfo, TPeerId>>
-    where
-        TTrans: Transport<Output = (TConnInfo, TMuxer)>,
-        TTrans::Error: Send + 'static,
-        TTrans::Dial: Send + 'static,
-        TTrans::ListenerUpgrade: Send + 'static,
-        TMuxer: Send + Sync + 'static,
-        TMuxer::OutboundSubstream: Send,
-        TInEvent: Send + 'static,
-        TOutEvent: Send + 'static,
-        THandler: IntoConnectionHandler<TConnInfo> + Send + 'static,
-        THandler::Handler: ConnectionHandler<Substream = Substream<TMuxer>, InEvent = TInEvent, OutEvent = TOutEvent> + Send + 'static,
-        <THandler::Handler as ConnectionHandler>::Error: error::Error + Send + 'static,
-        TConnInfo: Clone,
-        TPeerId: Send + 'static,
+    pub fn poll<'a>(&'a mut self, cx: &mut Context<'_>)
+        -> Poll<NetworkEvent<'a, TTrans, TInEvent, TOutEvent, THandler, TConnInfo, TPeerId>>
     {
         // Poll the listener(s) for new connections.
         match ListenersStream::poll(Pin::new(&mut self.listeners), cx) {
@@ -471,15 +437,6 @@ where
     /// Initiates a connection attempt to a known peer.
     fn dial_peer(&mut self, opts: DialingOpts<TPeerId, THandler>)
         -> Result<ConnectionId, ConnectionLimit>
-    where
-        TTrans: Transport<Output = (TConnInfo, TMuxer)>,
-        TTrans::Dial: Send + 'static,
-        TTrans::Error: Send + 'static,
-        TMuxer: Send + Sync + 'static,
-        TMuxer::OutboundSubstream: Send,
-        TInEvent: Send + 'static,
-        TOutEvent: Send + 'static,
-        TPeerId: Send + 'static,
     {
         dial_peer_impl(self.transport().clone(), &mut self.pool, &mut self.dialing, opts)
     }
@@ -504,18 +461,13 @@ fn dial_peer_impl<TMuxer, TInEvent, TOutEvent, THandler, TTrans, TConnInfo, TPee
 ) -> Result<ConnectionId, ConnectionLimit>
 where
     THandler: IntoConnectionHandler<TConnInfo> + Send + 'static,
-    <THandler::Handler as ConnectionHandler>::Error: error::Error + Send + 'static,
-    <THandler::Handler as ConnectionHandler>::OutboundOpenInfo: Send + 'static,
     THandler::Handler: ConnectionHandler<
         Substream = Substream<TMuxer>,
         InEvent = TInEvent,
         OutEvent = TOutEvent,
     > + Send + 'static,
     TTrans: Transport<Output = (TConnInfo, TMuxer)>,
-    TTrans::Dial: Send + 'static,
-    TTrans::Error: error::Error + Send + 'static,
     TMuxer: StreamMuxer + Send + Sync + 'static,
-    TMuxer::OutboundSubstream: Send + 'static,
     TInEvent: Send + 'static,
     TOutEvent: Send + 'static,
     TPeerId: Eq + Hash + Send + Clone + 'static,

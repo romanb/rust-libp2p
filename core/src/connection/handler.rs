@@ -37,12 +37,12 @@ pub trait ConnectionHandler {
     /// See also [`NetworkEvent::ConnectionEvent`](crate::network::NetworkEvent::ConnectionEvent).
     type OutEvent;
     /// The type of errors that the handler can produce when polled by the `Network`.
-    type Error;
+    type Error: std::error::Error + Send + 'static;
     /// The type of the substream containing the data.
     type Substream;
     /// Information about a substream. Can be sent to the handler through a `SubstreamEndpoint`,
     /// and will be passed back in `inject_substream` or `inject_outbound_closed`.
-    type OutboundOpenInfo;
+    type OutboundOpenInfo: Send + 'static;
 
     /// Sends a new substream to the handler.
     ///

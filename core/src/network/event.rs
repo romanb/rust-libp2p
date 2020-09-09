@@ -179,12 +179,10 @@ where
 impl<TTrans, TInEvent, TOutEvent, THandler, TConnInfo, TPeerId> fmt::Debug for
     NetworkEvent<'_, TTrans, TInEvent, TOutEvent, THandler, TConnInfo, TPeerId>
 where
+    TTrans: Transport,
+    THandler: IntoConnectionHandler<TConnInfo>,
     TInEvent: fmt::Debug,
     TOutEvent: fmt::Debug,
-    TTrans: Transport,
-    TTrans::Error: fmt::Debug,
-    THandler: IntoConnectionHandler<TConnInfo>,
-    <THandler::Handler as ConnectionHandler>::Error: fmt::Debug,
     TConnInfo: fmt::Debug,
     TPeerId: fmt::Debug,
 {

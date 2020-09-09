@@ -46,7 +46,7 @@ impl UpgradeInfo for DeflateConfig {
 
 impl<C> InboundUpgrade<C> for DeflateConfig
 where
-    C: AsyncRead + AsyncWrite,
+    C: AsyncRead + AsyncWrite + Send,
 {
     type Output = DeflateOutput<C>;
     type Error = io::Error;
@@ -59,7 +59,7 @@ where
 
 impl<C> OutboundUpgrade<C> for DeflateConfig
 where
-    C: AsyncRead + AsyncWrite,
+    C: AsyncRead + AsyncWrite + Send,
 {
     type Output = DeflateOutput<C>;
     type Error = io::Error;

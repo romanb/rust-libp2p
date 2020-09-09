@@ -186,7 +186,7 @@ impl UpgradeInfo for KademliaProtocolConfig {
 
 impl<C> InboundUpgrade<C> for KademliaProtocolConfig
 where
-    C: AsyncRead + AsyncWrite + Unpin,
+    C: AsyncRead + AsyncWrite + Unpin + Send,
 {
     type Output = KadInStreamSink<C>;
     type Future = future::Ready<Result<Self::Output, io::Error>>;
@@ -218,7 +218,7 @@ where
 
 impl<C> OutboundUpgrade<C> for KademliaProtocolConfig
 where
-    C: AsyncRead + AsyncWrite + Unpin,
+    C: AsyncRead + AsyncWrite + Unpin + Send,
 {
     type Output = KadOutStreamSink<C>;
     type Future = future::Ready<Result<Self::Output, io::Error>>;

@@ -78,7 +78,7 @@ pub trait StreamMuxer {
     type Substream;
 
     /// Future that will be resolved when the outgoing substream is open.
-    type OutboundSubstream;
+    type OutboundSubstream: Send;
 
     /// Error type of the muxer
     type Error: Into<io::Error>;
@@ -488,7 +488,6 @@ impl StreamMuxerBox {
     pub fn new<T>(muxer: T) -> StreamMuxerBox
     where
         T: StreamMuxer + Send + Sync + 'static,
-        T::OutboundSubstream: Send,
         T::Substream: Send,
     {
         let wrap = Wrap {

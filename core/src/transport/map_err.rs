@@ -39,9 +39,9 @@ impl<T, F> MapErr<T, F> {
 
 impl<T, F, TErr> Transport for MapErr<T, F>
 where
-    T: Transport,
-    F: FnOnce(T::Error) -> TErr + Clone,
-    TErr: error::Error,
+    T: Transport + 'static,
+    F: FnOnce(T::Error) -> TErr + Clone + Send + 'static,
+    TErr: error::Error + Send + 'static,
 {
     type Output = T::Output;
     type Error = TErr;

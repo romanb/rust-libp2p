@@ -91,8 +91,6 @@ where
 impl<T> Transport for DnsConfig<T>
 where
     T: Transport + Send + 'static,
-    T::Error: Send,
-    T::Dial: Send
 {
     type Output = T::Output;
     type Error = DnsErr<T::Error>;

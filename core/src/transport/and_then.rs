@@ -40,9 +40,9 @@ impl<T, C> AndThen<T, C> {
 impl<T, C, F, O> Transport for AndThen<T, C>
 where
     T: Transport,
-    C: FnOnce(T::Output, ConnectedPoint) -> F + Clone,
-    F: TryFuture<Ok = O>,
-    F::Error: error::Error,
+    C: FnOnce(T::Output, ConnectedPoint) -> F + Send + Clone + 'static,
+    F: TryFuture<Ok = O> + Send + 'static,
+    F::Error: error::Error + Send + 'static,
 {
     type Output = O;
     type Error = EitherError<T::Error, F::Error>;

@@ -134,7 +134,7 @@ impl<T: AsRef<[u8]>> ProtocolName for T {
 /// or both.
 pub trait UpgradeInfo {
     /// Opaque type representing a negotiable protocol.
-    type Info: ProtocolName + Clone;
+    type Info: ProtocolName + Clone + Send;
     /// Iterator returned by `protocol_info`.
     type InfoIter: IntoIterator<Item = Self::Info>;
 
@@ -149,7 +149,7 @@ pub trait InboundUpgrade<C>: UpgradeInfo {
     /// Possible error during the handshake.
     type Error;
     /// Future that performs the handshake with the remote.
-    type Future: Future<Output = Result<Self::Output, Self::Error>>;
+    type Future: Future<Output = Result<Self::Output, Self::Error>> + Send;
 
     /// After we have determined that the remote supports one of the protocols we support, this
     /// method is called to start the handshake.
@@ -189,7 +189,7 @@ pub trait OutboundUpgrade<C>: UpgradeInfo {
     /// Possible error during the handshake.
     type Error;
     /// Future that performs the handshake with the remote.
-    type Future: Future<Output = Result<Self::Output, Self::Error>>;
+    type Future: Future<Output = Result<Self::Output, Self::Error>> + Send;
 
     /// After we have determined that the remote supports one of the protocols we support, this
     /// method is called to start the handshake.

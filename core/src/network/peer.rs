@@ -42,7 +42,6 @@ use fnv::FnvHashMap;
 use smallvec::SmallVec;
 use std::{
     collections::hash_map,
-    error,
     fmt,
     hash::Hash,
 };
@@ -136,7 +135,6 @@ where
         Self::disconnected(network, peer_id)
     }
 
-
     fn disconnected(
         network: &'a mut Network<TTrans, TInEvent, TOutEvent, THandler, TConnInfo, TPeerId>,
         peer_id: TPeerId
@@ -163,17 +161,12 @@ impl<'a, TTrans, TMuxer, TInEvent, TOutEvent, THandler, TConnInfo, TPeerId>
     Peer<'a, TTrans, TInEvent, TOutEvent, THandler, TConnInfo, TPeerId>
 where
     TTrans: Transport<Output = (TConnInfo, TMuxer)> + Clone,
-    TTrans::Error: Send + 'static,
-    TTrans::Dial: Send + 'static,
     TMuxer: StreamMuxer + Send + Sync + 'static,
-    TMuxer::OutboundSubstream: Send,
     TInEvent: Send + 'static,
     TOutEvent: Send + 'static,
     THandler: IntoConnectionHandler<TConnInfo> + Send + 'static,
     THandler::Handler: ConnectionHandler<Substream = Substream<TMuxer>, InEvent = TInEvent, OutEvent = TOutEvent> + Send,
-    <THandler::Handler as ConnectionHandler>::OutboundOpenInfo: Send,
-    <THandler::Handler as ConnectionHandler>::Error: error::Error + Send + 'static,
-    TConnInfo: fmt::Debug + ConnectionInfo<PeerId = TPeerId> + Send + 'static,
+    TConnInfo: fmt::Debug + ConnectionInfo<PeerId = TPeerId> + Send + Clone + 'static,
     TPeerId: Eq + Hash + Clone + Send + 'static,
 {
     /// Checks whether the peer is currently connected.
@@ -570,14 +563,10 @@ where
         TInEvent: Send + 'static,
         TOutEvent: Send + 'static,
         THandler: Send + 'static,
-        TTrans::Error: Send + 'static,
         THandler::Handler: ConnectionHandler<Substream = Substream<TMuxer>, InEvent = TInEvent, OutEvent = TOutEvent> + Send,
-        <THandler::Handler as ConnectionHandler>::OutboundOpenInfo: Send,
-        <THandler::Handler as ConnectionHandler>::Error: error::Error + Send + 'static,
         TConnInfo: fmt::Debug + ConnectionInfo<PeerId = TPeerId> + Clone + Send + 'static,
         TPeerId: Eq + Hash + Clone + Send + fmt::Debug + 'static,
         TMuxer: StreamMuxer + Send + Sync + 'static,
-        TMuxer::OutboundSubstream: Send,
     {
         if connected.peer_id() != &self.peer_id {
             panic!("Invalid peer ID given: {:?}. Expected: {:?}", connected.peer_id(), self.peer_id)
