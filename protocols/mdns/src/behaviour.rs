@@ -199,13 +199,17 @@ impl NetworkBehaviour for Mdns {
                 MdnsPacket::Query(query) => {
                     // MaybeBusyMdnsService should always be Free.
                     if let MdnsBusyWrapper::Free(ref mut service) = self.service {
-                        let resp = build_query_response(
+                        match build_query_response(
                             query.query_id(),
                             params.local_peer_id().clone(),
                             params.listened_addresses().into_iter(),
                             MDNS_RESPONSE_TTL,
-                        );
-                        service.enqueue_response(resp.unwrap());
+                        ) {
+                            Ok(resp) => service.enqueue_response(resp),
+                            Err(e) => {
+                                log::warn!("Failed to respond to MDNS query: {:?}", e);
+                            }
+                        }
                     } else { debug_assert!(false); }
                 },
                 MdnsPacket::Response(response) => {
