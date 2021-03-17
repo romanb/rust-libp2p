@@ -1,8 +1,8 @@
 [package]
-name = "libp2p-swarm"
+name = "libp2p-pnet"
 edition = "2018"
-description = "The libp2p swarm"
-version = "0.28.0"
+description = "Private swarm support for libp2p"
+version = "0.20.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 license = "MIT"
 repository = "https://github.com/libp2p/rust-libp2p"
@@ -10,17 +10,12 @@ keywords = ["peer-to-peer", "libp2p", "networking"]
 categories = ["network-programming", "asynchronous"]
 
 [dependencies]
-either = "1.6.0"
 futures = "0.3.1"
-libp2p-core = { version = "0.28.0", path = "../core" }
-log = "0.4"
+log = "0.4.8"
+salsa20 = "0.7"
+sha3 = "0.9"
 rand = "0.7"
-smallvec = "1.6.1"
-wasm-timer = "0.2"
-void = "1"
+pin-project = "1.0.2"
 
 [dev-dependencies]
-libp2p-mplex = { path = "../muxers/mplex" }
-libp2p-noise = { path = "../transports/noise" }
 quickcheck = "1.0.3"
-rand = "0.7.2"
